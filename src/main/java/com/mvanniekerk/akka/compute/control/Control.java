@@ -9,6 +9,7 @@ import akka.actor.typed.javadsl.Receive;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.mvanniekerk.akka.compute.vertex.Core;
 import com.mvanniekerk.akka.compute.vertex.CoreConsumer;
+import com.mvanniekerk.akka.compute.vertex.CoreControl;
 import com.mvanniekerk.akka.compute.vertex.VertexMessage;
 
 import java.util.HashMap;
@@ -20,6 +21,8 @@ public class Control extends AbstractBehavior<Control.Message> {
     public record CreateVertex(String name) implements Message {}
     public record GetVertex(String name, ActorRef<ActorRef<VertexMessage>> replyTo) implements Message {}
     public record ReceiveHttp(String name, JsonNode body) implements Message {}
+    public record LoadCode(String name, String code) implements Message {}
+    public record LinkVertices(String from, String to) implements Message {}
 
     private final Map<String, ActorRef<VertexMessage>> vertices = new HashMap<>();
 
@@ -35,7 +38,7 @@ public class Control extends AbstractBehavior<Control.Message> {
     public Receive<Message> createReceive() {
         return newReceiveBuilder()
                 .onMessage(CreateVertex.class, msg -> {
-                    ActorRef<VertexMessage> vert = getContext().spawn(Core.create(), msg.name);
+                    ActorRef<VertexMessage> vert = getContext().spawn(Core.create(msg.name), msg.name);
                     vertices.put(msg.name, vert);
                     return this;
                 })
@@ -47,6 +50,17 @@ public class Control extends AbstractBehavior<Control.Message> {
                 .onMessage(ReceiveHttp.class, msg -> {
                     ActorRef<VertexMessage> vertActor = vertices.get(msg.name);
                     vertActor.tell(new CoreConsumer.Message(msg.body));
+                    return this;
+                })
+                .onMessage(LoadCode.class, msg -> {
+                    ActorRef<VertexMessage> vertActor = vertices.get(msg.name);
+                    vertActor.tell(new CoreControl.LoadCode(msg.code));
+                    return this;
+                })
+                .onMessage(LinkVertices.class, msg -> {
+                    ActorRef<VertexMessage> source = vertices.get(msg.from);
+                    ActorRef<VertexMessage> target = vertices.get(msg.to);
+                    source.tell(new CoreControl.Connect(target));
                     return this;
                 })
                 .build();

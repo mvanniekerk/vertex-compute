@@ -9,4 +9,8 @@ public interface CoreControl extends VertexMessage {
 
     record ShowCode(ActorRef<String> replyTo) implements CoreControl {
     }
+
+    record Connect(ActorRef<? super CoreConsumer> target) implements CoreControl {
+
+    }
 }

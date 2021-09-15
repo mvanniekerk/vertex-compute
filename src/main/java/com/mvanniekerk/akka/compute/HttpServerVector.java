@@ -61,6 +61,16 @@ public class HttpServerVector extends AllDirectives {
                         post(() -> path(name -> entity(jsonUnmarshaller(), body -> {
                             control.tell(new Control.ReceiveHttp(name, body));
                             return complete(StatusCodes.OK, "message sent");
+                        })))),
+                pathPrefix("loadCode", () ->
+                        post(() -> path(name -> entity(Unmarshaller.entityToString(), code -> {
+                            control.tell(new Control.LoadCode(name, code));
+                            return complete(StatusCodes.OK, "code sent");
+                        })))),
+                path("link", () ->
+                        post(() -> parameter("source", source -> parameter("target", target -> {
+                            control.tell(new Control.LinkVertices(source, target));
+                            return complete(StatusCodes.OK, "vertices linked");
                         }))))
         );
     }
