@@ -4,13 +4,23 @@ import akka.actor.typed.ActorRef;
 import akka.actor.typed.ActorSystem;
 import akka.http.javadsl.Http;
 import akka.http.javadsl.ServerBinding;
+import akka.http.javadsl.model.HttpEntity;
+import akka.http.javadsl.model.MediaTypes;
 import akka.http.javadsl.model.StatusCodes;
 import akka.http.javadsl.server.AllDirectives;
 import akka.http.javadsl.server.Route;
+import akka.http.javadsl.unmarshalling.Unmarshaller;
+import akka.http.scaladsl.model.ErrorInfo;
+import akka.http.scaladsl.model.ExceptionWithErrorInfo;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mvanniekerk.akka.compute.control.Control;
 
 import java.io.IOException;
 import java.util.concurrent.CompletionStage;
+
+import static com.mvanniekerk.akka.compute.HttpObjectMapper.jsonUnmarshaller;
 
 public class HttpServerVector extends AllDirectives {
 
@@ -47,8 +57,8 @@ public class HttpServerVector extends AllDirectives {
                             control.tell(new Control.CreateVertex(name));
                             return complete(StatusCodes.OK, "vertex created");
                         }))),
-                path("send", () ->
-                        post(() -> parameter("name", name -> parameter("body", body -> {
+                pathPrefix("send", () ->
+                        post(() -> path(name -> entity(jsonUnmarshaller(), body -> {
                             control.tell(new Control.ReceiveHttp(name, body));
                             return complete(StatusCodes.OK, "message sent");
                         }))))

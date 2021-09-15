@@ -6,6 +6,7 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.mvanniekerk.akka.compute.vertex.Core;
 import com.mvanniekerk.akka.compute.vertex.CoreConsumer;
 import com.mvanniekerk.akka.compute.vertex.VertexMessage;
@@ -18,7 +19,7 @@ public class Control extends AbstractBehavior<Control.Message> {
 
     public record CreateVertex(String name) implements Message {}
     public record GetVertex(String name, ActorRef<ActorRef<VertexMessage>> replyTo) implements Message {}
-    public record ReceiveHttp(String name, String body) implements Message {}
+    public record ReceiveHttp(String name, JsonNode body) implements Message {}
 
     private final Map<String, ActorRef<VertexMessage>> vertices = new HashMap<>();
 
