@@ -4,13 +4,9 @@ import akka.actor.typed.ActorRef;
 
 public interface CoreControl extends VertexMessage {
 
-    record LoadCode(String code) implements CoreControl {
-    }
+    record LoadCode(String code) implements CoreControl {}
 
-    record ShowCode(ActorRef<String> replyTo) implements CoreControl {
-    }
+    record ShowCode(ActorRef<String> replyTo) implements CoreControl {}
 
-    record Connect(ActorRef<? super CoreConsumer> target) implements CoreControl {
-
-    }
+    record Connect(ActorRef<? super CoreConsumer> target) implements CoreControl {}
 }

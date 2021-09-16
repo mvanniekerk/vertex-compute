@@ -20,9 +20,11 @@ public class Control extends AbstractBehavior<Control.Message> {
 
     public record CreateVertex(String name) implements Message {}
     public record GetVertex(String name, ActorRef<ActorRef<VertexMessage>> replyTo) implements Message {}
-    public record ReceiveHttp(String name, JsonNode body) implements Message {}
     public record LoadCode(String name, String code) implements Message {}
     public record LinkVertices(String from, String to) implements Message {}
+
+    // TODO: receive HTTP should be split to own actor, set up direct link and get out of the way
+    public record ReceiveHttp(String name, JsonNode body) implements Message {}
 
     private final Map<String, ActorRef<VertexMessage>> vertices = new HashMap<>();
 
