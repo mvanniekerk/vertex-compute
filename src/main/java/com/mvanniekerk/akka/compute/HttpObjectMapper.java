@@ -16,7 +16,7 @@ public class HttpObjectMapper {
     private static final ObjectMapper DEFAULT_OBJECT_MAPPER =
             new ObjectMapper().enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY);
 
-    public static Unmarshaller<HttpEntity, JsonNode> jsonUnmarshaller() {
+    public static Unmarshaller<HttpEntity, JsonNode> genericJsonUnmarshaller() {
         return Unmarshaller.forMediaType(MediaTypes.APPLICATION_JSON, Unmarshaller.entityToString())
                 .thenApply(s -> {
                     try {

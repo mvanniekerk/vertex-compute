@@ -1,9 +1,9 @@
 package com.mvanniekerk.akka.compute.vertex;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.mvanniekerk.akka.compute.compute.ComputeCore;
 
 import java.util.function.Function;
 
 public interface Compiler {
-    Function<JsonNode, JsonNode> compile(String code);
+    Function<Core, ComputeCore> compile(String code);
 }
