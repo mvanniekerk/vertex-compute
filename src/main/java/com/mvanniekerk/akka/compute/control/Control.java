@@ -19,14 +19,16 @@ public class Control extends AbstractBehavior<Control.Message> {
 
     // HTTP requests
     public record GetStateRequest(ActorRef<SystemDescription> replyTo) implements Message {}
-    public record CreateVertex(ActorRef<VertexReply> replyTo, String name) implements Message {}
-    public static record VertexReply(String status, String id) {}
-    public record LoadCode(String id, String code) implements Message {}
+    public record CreateVertex(ActorRef<VertexReply> replyTo, String name, String code) implements Message {}
+    public record VertexReply(String status, VertexDescription description) {}
+    public record LoadCode(ActorRef<LoadCodeReply> replyTo, String id, String code) implements Message {}
+    public record LoadCodeReply(String status, VertexDescription description) {}
     public record LinkVertices(ActorRef<LinkReply> replyTo, String from, String to) implements Message {}
-    public static record LinkReply(String status, String id) {}
+    public record LinkReply(String status, String id) {}
 
     // Vertex responses
-    private record VertexDescribeAggregator(ActorRef<SystemDescription> replyTo, List<VertexDescription> vertices) implements Message {}
+    private record VertexDescribeAggregator(ActorRef<SystemDescription> replyTo,
+                                            List<VertexDescription> vertices) implements Message {}
 
     // WS push messages
     public record Log(JsonNode message) implements Message {}
@@ -70,9 +72,9 @@ public class Control extends AbstractBehavior<Control.Message> {
                 })
                 .onMessage(CreateVertex.class, msg -> {
                     String id = UUID.randomUUID().toString();
-                    ActorRef<VertexMessage> vert = getContext().spawn(Core.create(id, msg.name), id);
+                    ActorRef<VertexMessage> vert = getContext().spawn(Core.create(id, msg.name, msg.code), id);
                     verticesById.put(id, vert);
-                    msg.replyTo.tell(new VertexReply("Success", id));
+                    msg.replyTo.tell(new VertexReply("Success", new VertexDescription(id, msg.name, msg.code)));
                     return this;
                 })
                 .onMessage(ReceiveHttp.class, msg -> {
@@ -83,6 +85,8 @@ public class Control extends AbstractBehavior<Control.Message> {
                 .onMessage(LoadCode.class, msg -> {
                     ActorRef<VertexMessage> vertActor = verticesById.get(msg.id);
                     vertActor.tell(new CoreControl.LoadCode(msg.code));
+                    msg.replyTo.tell(new LoadCodeReply("Success", new VertexDescription(msg.id, null, msg.code)));
+                    // TODO: fix name being null
                     return this;
                 })
                 .onMessage(LinkVertices.class, msg -> {

@@ -1,4 +1,4 @@
-package com.mvanniekerk.akka.compute;
+package com.mvanniekerk.akka.compute.util;
 
 import akka.http.javadsl.model.HttpEntity;
 import akka.http.javadsl.model.MediaTypes;

@@ -7,11 +7,13 @@ import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.mvanniekerk.akka.compute.compute.Compiler;
 import com.mvanniekerk.akka.compute.compute.ComputeCore;
+import com.mvanniekerk.akka.compute.compute.NoopCompute;
+import com.mvanniekerk.akka.compute.compute.StaticClassNameCompiler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -22,18 +24,20 @@ public class Core extends AbstractBehavior<VertexMessage> {
     private final String id;
     private final String name;
 
-    private String code = "pass";
+    private String code;
     private ComputeCore process;
     private Map<String, ActorRef<? super CoreConsumer>> targetsById = new HashMap<>();
 
-    private Core(ActorContext<VertexMessage> context, String id, String name) {
+    private Core(ActorContext<VertexMessage> context, String id, String name, String code) {
         super(context);
         this.id = id;
         this.name = name;
+        this.code = code;
+        process = new NoopCompute(this);
     }
 
-    public static Behavior<VertexMessage> create(String id, String name) {
-        return Behaviors.setup(context -> new Core(context, id, name));
+    public static Behavior<VertexMessage> create(String id, String name, String code) {
+        return Behaviors.setup(context -> new Core(context, id, name, code));
     }
 
     public void send(JsonNode message) {

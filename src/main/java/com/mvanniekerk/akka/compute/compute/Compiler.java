@@ -1,6 +1,6 @@
-package com.mvanniekerk.akka.compute.vertex;
+package com.mvanniekerk.akka.compute.compute;
 
-import com.mvanniekerk.akka.compute.compute.ComputeCore;
+import com.mvanniekerk.akka.compute.vertex.Core;
 
 import java.util.function.Function;
 

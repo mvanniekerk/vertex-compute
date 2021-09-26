@@ -1,8 +1,6 @@
-package com.mvanniekerk.akka.compute.vertex;
+package com.mvanniekerk.akka.compute.compute;
 
-import com.mvanniekerk.akka.compute.compute.ComputeCore;
-import com.mvanniekerk.akka.compute.compute.NoopCompute;
-import com.mvanniekerk.akka.compute.compute.Splitter;
+import com.mvanniekerk.akka.compute.vertex.Core;
 
 import java.util.HashMap;
 import java.util.Map;
