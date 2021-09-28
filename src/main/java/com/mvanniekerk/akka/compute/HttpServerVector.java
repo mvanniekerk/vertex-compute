@@ -9,16 +9,25 @@ import akka.http.javadsl.ServerBinding;
 import akka.http.javadsl.marshallers.jackson.Jackson;
 import akka.http.javadsl.model.StatusCodes;
 import akka.http.javadsl.model.ws.Message;
+import akka.http.javadsl.model.ws.TextMessage;
 import akka.http.javadsl.server.*;
+import akka.stream.OverflowStrategy;
 import akka.stream.javadsl.Flow;
+import akka.stream.javadsl.Sink;
+import akka.stream.javadsl.Source;
+import akka.stream.typed.javadsl.ActorSource;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.mvanniekerk.akka.compute.control.Control;
 import com.mvanniekerk.akka.compute.control.SystemDescription;
+import com.mvanniekerk.akka.compute.vertex.CoreLog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.time.Duration;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -68,7 +77,8 @@ public class HttpServerVector extends AllDirectives {
                 pathPrefix("send", this::sendRoute),
                 pathPrefix("code", this::loadCodeRoute),
                 path("link", this::linkRoute),
-                pathPrefix("log", this::logRoute)
+                pathPrefix("log", this::logRoute),
+                path("ws", this::wsRoute)
         );
 
         final RejectionHandler rejectionHandler = corsRejectionHandler().withFallback(RejectionHandler.defaultHandler());
@@ -88,11 +98,28 @@ public class HttpServerVector extends AllDirectives {
     }
 
     private Route wsRoute() {
-        return handleWebSocketMessages(wsHandler());
+        return handleWebSocketMessages(createWebsocketFlow());
     }
 
-    private Flow<Message, Message, NotUsed> wsHandler() {
-        return null;
+    private Flow<Message, Message, NotUsed> createWebsocketFlow() {
+        var source = createLogMessageActorSource();
+        Flow<Message, CoreLog.LogMessage, NotUsed> flow = Flow.fromSinkAndSource(Sink.ignore(), source);
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+
+        return flow.map(objectMapper::writeValueAsString)
+                .map((akka.japi.function.Function<String, Message>) TextMessage::create);
+    }
+
+    private Source<CoreLog.LogMessage, NotUsed> createLogMessageActorSource() {
+        Source<CoreLog.LogMessage, ActorRef<CoreLog.LogMessage>> source = ActorSource.actorRef(
+                msg -> false,
+                msg -> Optional.empty(),
+                500,
+                OverflowStrategy.dropTail());
+        var actorRefAndSource = source.preMaterialize(system);
+        control.tell(new Control.RegisterWebSocket(actorRefAndSource.first()));
+        return actorRefAndSource.second();
     }
 
     private Route logRoute() {

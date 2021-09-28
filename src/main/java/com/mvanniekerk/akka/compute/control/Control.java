@@ -15,6 +15,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 public class Control extends AbstractBehavior<Control.Message> {
+    private ActorRef<CoreLog.LogMessage> webSocket;
     public interface Message {}
 
     // HTTP requests
@@ -31,6 +32,7 @@ public class Control extends AbstractBehavior<Control.Message> {
                                             List<VertexDescription> vertices) implements Message {}
 
     // WS push messages
+    public record RegisterWebSocket(ActorRef<CoreLog.LogMessage> socket) implements Message {}
     public record WrappedLog(CoreLog.LogMessage message) implements Message {}
     public record LogSubscribe(String id) implements Message {}
 
@@ -108,7 +110,14 @@ public class Control extends AbstractBehavior<Control.Message> {
                 })
                 .onMessage(WrappedLog.class, msg -> {
                     CoreLog.LogMessage message = msg.message;
-                    getContext().getLog().info(message.toString());
+                    if (webSocket != null) {
+                        webSocket.tell(message);
+                    }
+                    return this;
+                })
+                .onMessage(RegisterWebSocket.class, msg -> {
+                    getContext().getLog().info("Registered a websocket actor.");
+                    webSocket = msg.socket();
                     return this;
                 })
                 .build();
