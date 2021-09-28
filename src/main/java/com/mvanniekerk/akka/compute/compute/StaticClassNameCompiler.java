@@ -15,6 +15,8 @@ public class StaticClassNameCompiler implements Compiler {
         computeBuilders = new HashMap<>();
         computeBuilders.put(NoopCompute.class.getSimpleName(), NoopCompute::new);
         computeBuilders.put(Splitter.class.getSimpleName(), Splitter::new);
+        computeBuilders.put(LoggerSink.class.getSimpleName(), LoggerSink::new);
+        computeBuilders.put(NumberSource.class.getSimpleName(), NumberSource::new);
     }
 
     @Override

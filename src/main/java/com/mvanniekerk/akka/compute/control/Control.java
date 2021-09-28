@@ -31,7 +31,8 @@ public class Control extends AbstractBehavior<Control.Message> {
                                             List<VertexDescription> vertices) implements Message {}
 
     // WS push messages
-    public record Log(JsonNode message) implements Message {}
+    public record WrappedLog(CoreLog.LogMessage message) implements Message {}
+    public record LogSubscribe(String id) implements Message {}
 
     // TODO: receive HTTP should be split to own actor, set up direct link and get out of the way
     public record ReceiveHttp(String id, JsonNode body) implements Message {}
@@ -40,6 +41,7 @@ public class Control extends AbstractBehavior<Control.Message> {
 
     private final Map<String, ActorRef<VertexMessage>> verticesById = new HashMap<>();
     private final Map<String, SystemDescription.Edge> edgesById = new HashMap<>();
+    private final ActorRef<CoreLog.LogMessage> logMessageAdapter;
 
     // CODE
 
@@ -49,6 +51,7 @@ public class Control extends AbstractBehavior<Control.Message> {
 
     private Control(ActorContext<Message> context) {
         super(context);
+        logMessageAdapter = getContext().messageAdapter(CoreLog.LogMessage.class, WrappedLog::new);
     }
 
     @Override
@@ -98,8 +101,14 @@ public class Control extends AbstractBehavior<Control.Message> {
                     msg.replyTo.tell(new LinkReply("Success", id));
                     return this;
                 })
-                .onMessage(Log.class, msg -> {
-                    // websocket.tell(msg)
+                .onMessage(LogSubscribe.class, msg -> {
+                    ActorRef<VertexMessage> vertActor = verticesById.get(msg.id);
+                    vertActor.tell(new CoreLog.SubscribeLog(logMessageAdapter));
+                    return this;
+                })
+                .onMessage(WrappedLog.class, msg -> {
+                    CoreLog.LogMessage message = msg.message;
+                    getContext().getLog().info(message.toString());
                     return this;
                 })
                 .build();

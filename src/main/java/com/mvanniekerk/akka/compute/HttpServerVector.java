@@ -1,5 +1,6 @@
 package com.mvanniekerk.akka.compute;
 
+import akka.NotUsed;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.ActorSystem;
 import akka.actor.typed.javadsl.AskPattern;
@@ -7,7 +8,9 @@ import akka.http.javadsl.Http;
 import akka.http.javadsl.ServerBinding;
 import akka.http.javadsl.marshallers.jackson.Jackson;
 import akka.http.javadsl.model.StatusCodes;
+import akka.http.javadsl.model.ws.Message;
 import akka.http.javadsl.server.*;
+import akka.stream.javadsl.Flow;
 import com.mvanniekerk.akka.compute.control.Control;
 import com.mvanniekerk.akka.compute.control.SystemDescription;
 import org.slf4j.Logger;
@@ -64,13 +67,14 @@ public class HttpServerVector extends AllDirectives {
                 path("createvertex", this::createVertexRoute),
                 pathPrefix("send", this::sendRoute),
                 pathPrefix("code", this::loadCodeRoute),
-                path("link", this::linkRoute)
+                path("link", this::linkRoute),
+                pathPrefix("log", this::logRoute)
         );
 
         final RejectionHandler rejectionHandler = corsRejectionHandler().withFallback(RejectionHandler.defaultHandler());
 
         final ExceptionHandler exceptionHandler = ExceptionHandler.newBuilder()
-                .match(NoSuchElementException.class, ex -> complete(StatusCodes.NOT_FOUND, ex.getMessage()))
+                .match(NoSuchElementException.class, ex -> complete(StatusCodes.NOT_FOUND, ex.getMessage(), Jackson.marshaller()))
                 .build();
 
         // Combining the two handlers only for convenience
@@ -81,6 +85,21 @@ public class HttpServerVector extends AllDirectives {
         );
 
         return handleErrors.apply(() -> cors(() -> handleErrors.apply(() -> route)));
+    }
+
+    private Route wsRoute() {
+        return handleWebSocketMessages(wsHandler());
+    }
+
+    private Flow<Message, Message, NotUsed> wsHandler() {
+        return null;
+    }
+
+    private Route logRoute() {
+        return post(() -> path(id -> {
+            control.tell(new Control.LogSubscribe(id));
+            return complete(StatusCodes.OK, "subscribed", Jackson.marshaller());
+        }));
     }
 
     private Route linkRoute() {
