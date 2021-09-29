@@ -17,6 +17,7 @@ public class StaticClassNameCompiler implements Compiler {
         computeBuilders.put(Splitter.class.getSimpleName(), Splitter::new);
         computeBuilders.put(LoggerSink.class.getSimpleName(), LoggerSink::new);
         computeBuilders.put(NumberSource.class.getSimpleName(), NumberSource::new);
+        computeBuilders.put(PrimeClassifier.class.getSimpleName(), PrimeClassifier::new);
     }
 
     @Override

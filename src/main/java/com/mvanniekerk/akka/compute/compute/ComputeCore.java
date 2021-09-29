@@ -1,6 +1,8 @@
 package com.mvanniekerk.akka.compute.compute;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.mvanniekerk.akka.compute.vertex.Core;
 
 import java.time.Duration;
@@ -9,16 +11,23 @@ public abstract class ComputeCore {
     // TODO: You are recreating an actor, consider just using an actor!!
 
     private final Core core;
+    private final ObjectMapper objectMapper;
 
     public abstract void receive(JsonNode message);
     public abstract String getName();
 
     public ComputeCore(Core consumer) {
+        this.objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
         this.core = consumer;
     }
 
     public final void send(JsonNode message) {
         core.send(message);
+    }
+
+    public final void send(Object message) {
+        core.send(objectMapper.valueToTree(message));
     }
 
     public final void log(String message) {

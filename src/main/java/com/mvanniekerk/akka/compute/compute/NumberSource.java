@@ -18,13 +18,10 @@ public class NumberSource extends ComputeCore {
 
     public NumberSource(Core consumer) {
         super(consumer);
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.registerModule(new JavaTimeModule());
         schedulePeriodic("numbers", Duration.ofSeconds(1), () -> {
             ZonedDateTime now = ZonedDateTime.now();
-            JsonNode message = objectMapper.valueToTree(new NumberMessage(number++, now));
             log("Generated number " + number);
-            send(message);
+            send(new NumberMessage(number++, now));
         });
     }
 

@@ -13,14 +13,11 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.ZonedDateTime;
-import java.util.ArrayDeque;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Queue;
+import java.util.*;
 
 public class Core extends AbstractBehavior<VertexMessage> {
     private static final Logger LOGGER = LoggerFactory.getLogger(Core.class);
-    private static final int MAX_LOG_MESSAGES = 1000;
+    private static final int MAX_LOG_MESSAGES = 100;
 
     private final Compiler compiler = new StaticClassNameCompiler();
     private final TimerScheduler<VertexMessage> scheduler;
@@ -81,7 +78,6 @@ public class Core extends AbstractBehavior<VertexMessage> {
         return newReceiveBuilder()
                 .onMessage(CoreConsumer.Message.class, msg -> {
                     JsonNode body = msg.body();
-                    LOGGER.info("Received ({}): {}", name, body);
                     if (process != null) {
                         process.receive(body);
                     }
@@ -117,6 +113,9 @@ public class Core extends AbstractBehavior<VertexMessage> {
                     return this;
                 })
                 .onMessage(CoreControl.LoadCode.class, msg -> {
+                    periodicRunnableByKey.keySet().forEach(scheduler::cancel);
+                    periodicRunnableByKey.clear();
+                    log.clear();
                     code = msg.code();
                     process = compiler.compile(code).apply(this);
                     return this;

@@ -46,6 +46,7 @@ public class Control extends AbstractBehavior<Control.Message> {
 
     private final Map<String, String> subscriptionsBySessionId = new HashMap<>();
     private final Map<String, ActorRef<CoreLog.LogMessage>> socketsBySessionId = new HashMap<>();
+    private final NameGenerator nameGenerator = new NameGenerator();
 
     // CODE
 
@@ -79,9 +80,15 @@ public class Control extends AbstractBehavior<Control.Message> {
                 })
                 .onMessage(CreateVertex.class, msg -> {
                     String id = UUID.randomUUID().toString();
-                    ActorRef<VertexMessage> vert = getContext().spawn(Core.create(id, msg.name, msg.code), id);
+                    String name;
+                    if (msg.name == null || msg.name.isBlank()) {
+                        name = nameGenerator.generateName();
+                    } else {
+                        name = msg.name;
+                    }
+                    ActorRef<VertexMessage> vert = getContext().spawn(Core.create(id, name, msg.code), id);
                     verticesById.put(id, vert);
-                    msg.replyTo.tell(new VertexReply("Success", new VertexDescription(id, msg.name, msg.code)));
+                    msg.replyTo.tell(new VertexReply("Success", new VertexDescription(id, name, msg.code)));
                     return this;
                 })
                 .onMessage(ReceiveHttp.class, msg -> {
