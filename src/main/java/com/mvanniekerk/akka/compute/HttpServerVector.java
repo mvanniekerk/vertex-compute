@@ -13,8 +13,10 @@ import akka.http.javadsl.model.ws.TextMessage;
 import akka.http.javadsl.server.*;
 import akka.stream.OverflowStrategy;
 import akka.stream.javadsl.Flow;
+import akka.stream.javadsl.Keep;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
+import akka.stream.typed.javadsl.ActorSink;
 import akka.stream.typed.javadsl.ActorSource;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -28,6 +30,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -77,7 +80,6 @@ public class HttpServerVector extends AllDirectives {
                 pathPrefix("send", this::sendRoute),
                 pathPrefix("code", this::loadCodeRoute),
                 path("link", this::linkRoute),
-                pathPrefix("log", this::logRoute),
                 path("ws", this::wsRoute)
         );
 
@@ -102,31 +104,40 @@ public class HttpServerVector extends AllDirectives {
     }
 
     private Flow<Message, Message, NotUsed> createWebsocketFlow() {
-        var source = createLogMessageActorSource();
-        Flow<Message, CoreLog.LogMessage, NotUsed> flow = Flow.fromSinkAndSource(Sink.ignore(), source);
+        var sessionId = UUID.randomUUID().toString();
+        var source = createLogMessageActorSource(sessionId);
+
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
+
+        Sink<Message, NotUsed> sink = createLogMessageSink(sessionId);
+
+        Flow<Message, CoreLog.LogMessage, NotUsed> flow = Flow.fromSinkAndSource(sink, source);
 
         return flow.map(objectMapper::writeValueAsString)
                 .map((akka.japi.function.Function<String, Message>) TextMessage::create);
     }
 
-    private Source<CoreLog.LogMessage, NotUsed> createLogMessageActorSource() {
+    private Sink<Message, NotUsed> createLogMessageSink(String sessionId) {
+        Sink<Control.Message, NotUsed> actorSink = ActorSink.actorRef(control,
+                new Control.LogSubscribe(sessionId, null),
+                error -> new Control.LogSubscribe(sessionId, null));
+
+        return Flow.of(Message.class)
+                .map(msg -> msg.asTextMessage().getStrictText())
+                .<Control.Message>map(text -> new Control.LogSubscribe(sessionId, text))
+                .toMat(actorSink, Keep.right());
+    }
+
+    private Source<CoreLog.LogMessage, NotUsed> createLogMessageActorSource(String sessionId) {
         Source<CoreLog.LogMessage, ActorRef<CoreLog.LogMessage>> source = ActorSource.actorRef(
                 msg -> false,
                 msg -> Optional.empty(),
                 500,
                 OverflowStrategy.dropTail());
         var actorRefAndSource = source.preMaterialize(system);
-        control.tell(new Control.RegisterWebSocket(actorRefAndSource.first()));
+        control.tell(new Control.RegisterWebSocket(sessionId, actorRefAndSource.first()));
         return actorRefAndSource.second();
-    }
-
-    private Route logRoute() {
-        return post(() -> path(id -> {
-            control.tell(new Control.LogSubscribe(id));
-            return complete(StatusCodes.OK, "subscribed", Jackson.marshaller());
-        }));
     }
 
     private Route linkRoute() {

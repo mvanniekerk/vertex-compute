@@ -15,7 +15,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 public class Control extends AbstractBehavior<Control.Message> {
-    private ActorRef<CoreLog.LogMessage> webSocket;
     public interface Message {}
 
     // HTTP requests
@@ -32,9 +31,9 @@ public class Control extends AbstractBehavior<Control.Message> {
                                             List<VertexDescription> vertices) implements Message {}
 
     // WS push messages
-    public record RegisterWebSocket(ActorRef<CoreLog.LogMessage> socket) implements Message {}
+    public record RegisterWebSocket(String sessionId, ActorRef<CoreLog.LogMessage> socket) implements Message {}
     public record WrappedLog(CoreLog.LogMessage message) implements Message {}
-    public record LogSubscribe(String id) implements Message {}
+    public record LogSubscribe(String session, String id) implements Message {}
 
     // TODO: receive HTTP should be split to own actor, set up direct link and get out of the way
     public record ReceiveHttp(String id, JsonNode body) implements Message {}
@@ -44,6 +43,9 @@ public class Control extends AbstractBehavior<Control.Message> {
     private final Map<String, ActorRef<VertexMessage>> verticesById = new HashMap<>();
     private final Map<String, SystemDescription.Edge> edgesById = new HashMap<>();
     private final ActorRef<CoreLog.LogMessage> logMessageAdapter;
+
+    private final Map<String, String> subscriptionsBySessionId = new HashMap<>();
+    private final Map<String, ActorRef<CoreLog.LogMessage>> socketsBySessionId = new HashMap<>();
 
     // CODE
 
@@ -103,21 +105,35 @@ public class Control extends AbstractBehavior<Control.Message> {
                     msg.replyTo.tell(new LinkReply("Success", id));
                     return this;
                 })
+
                 .onMessage(LogSubscribe.class, msg -> {
-                    ActorRef<VertexMessage> vertActor = verticesById.get(msg.id);
-                    vertActor.tell(new CoreLog.SubscribeLog(logMessageAdapter));
+                    getContext().getLog().info("Log subscribe {}", msg);
+                    var subscription = subscriptionsBySessionId.get(msg.session);
+                    if (subscription != null) {
+                        var oldVertex = verticesById.get(subscription);
+                        oldVertex.tell(new CoreLog.UnsubscribeLog());
+                    }
+                    if (msg.id != null) {
+                        subscriptionsBySessionId.put(msg.session, msg.id);
+                        ActorRef<VertexMessage> newVertex = verticesById.get(msg.id);
+                        newVertex.tell(new CoreLog.SubscribeLog(logMessageAdapter));
+                    }
                     return this;
                 })
                 .onMessage(WrappedLog.class, msg -> {
                     CoreLog.LogMessage message = msg.message;
-                    if (webSocket != null) {
-                        webSocket.tell(message);
-                    }
+                    var id = message.computeId();
+                    subscriptionsBySessionId.entrySet().stream()
+                            .filter(entry -> entry.getValue().equals(id))
+                            .map(Map.Entry::getKey)
+                            .findFirst()
+                            .map(socketsBySessionId::get)
+                            .ifPresent(socket -> socket.tell(message));
                     return this;
                 })
                 .onMessage(RegisterWebSocket.class, msg -> {
-                    getContext().getLog().info("Registered a websocket actor.");
-                    webSocket = msg.socket();
+                    getContext().getLog().info("Register ws: {}", msg);
+                    socketsBySessionId.put(msg.sessionId, msg.socket);
                     return this;
                 })
                 .build();
