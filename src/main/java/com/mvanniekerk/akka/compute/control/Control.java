@@ -21,8 +21,8 @@ public class Control extends AbstractBehavior<Control.Message> {
     public record GetStateRequest(ActorRef<SystemDescription> replyTo) implements Message {}
     public record CreateVertex(ActorRef<VertexReply> replyTo, String name, String code) implements Message {}
     public record VertexReply(String status, VertexDescription description) {}
-    public record LoadCode(ActorRef<LoadCodeReply> replyTo, String id, String code) implements Message {}
-    public record LoadCodeReply(String status, VertexDescription description) {}
+    public record LoadCode(ActorRef<VertexDescription> replyTo, String id, String code) implements Message {}
+    public record LoadName(ActorRef<VertexDescription> replyTo, String id, String code) implements Message {}
     public record LinkVertices(ActorRef<LinkReply> replyTo, String from, String to) implements Message {}
     public record LinkReply(String status, String id) {}
 
@@ -98,9 +98,12 @@ public class Control extends AbstractBehavior<Control.Message> {
                 })
                 .onMessage(LoadCode.class, msg -> {
                     ActorRef<VertexMessage> vertActor = verticesById.get(msg.id);
-                    vertActor.tell(new CoreControl.LoadCode(msg.code));
-                    msg.replyTo.tell(new LoadCodeReply("Success", new VertexDescription(msg.id, null, msg.code)));
-                    // TODO: fix name being null
+                    vertActor.tell(new CoreControl.LoadCode(msg.replyTo, msg.code));
+                    return this;
+                })
+                .onMessage(LoadName.class, msg -> {
+                    var vertex = verticesById.get(msg.id);
+                    vertex.tell(new CoreControl.LoadName(msg.replyTo, msg.code));
                     return this;
                 })
                 .onMessage(LinkVertices.class, msg -> {
@@ -114,7 +117,6 @@ public class Control extends AbstractBehavior<Control.Message> {
                 })
 
                 .onMessage(LogSubscribe.class, msg -> {
-                    getContext().getLog().info("Log subscribe {}", msg);
                     var subscription = subscriptionsBySessionId.get(msg.session);
                     if (subscription != null) {
                         var oldVertex = verticesById.get(subscription);

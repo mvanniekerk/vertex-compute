@@ -22,11 +22,12 @@ public class Core extends AbstractBehavior<VertexMessage> {
     private final Compiler compiler = new StaticClassNameCompiler();
     private final TimerScheduler<VertexMessage> scheduler;
     private final String id;
-    private final String name;
 
     private final Map<String, ActorRef<? super CoreConsumer>> targetsById = new HashMap<>();
     private final Map<String, Runnable> periodicRunnableByKey = new HashMap<>();
     private final Queue<CoreLog.LogMessage> log = new ArrayDeque<>();
+
+    private String name;
     private String code;
     private ComputeCore process;
     private ActorRef<CoreLog.LogMessage> logSubscriber;
@@ -73,6 +74,10 @@ public class Core extends AbstractBehavior<VertexMessage> {
         periodicRunnableByKey.remove(key);
     }
 
+    public VertexDescription describe() {
+        return new VertexDescription(id, name, code);
+    }
+
     @Override
     public Receive<VertexMessage> createReceive() {
         return newReceiveBuilder()
@@ -104,8 +109,7 @@ public class Core extends AbstractBehavior<VertexMessage> {
                 })
 
                 .onMessage(CoreControl.Describe.class, msg -> {
-                    var description = new VertexDescription(id, name, code);
-                    msg.replyTo().tell(description);
+                    msg.replyTo().tell(describe());
                     return this;
                 })
                 .onMessage(CoreControl.ShowCode.class, msg -> {
@@ -118,6 +122,12 @@ public class Core extends AbstractBehavior<VertexMessage> {
                     log.clear();
                     code = msg.code();
                     process = compiler.compile(code).apply(this);
+                    msg.replyTo().tell(describe());
+                    return this;
+                })
+                .onMessage(CoreControl.LoadName.class, msg -> {
+                    this.name = msg.name();
+                    msg.replyTo().tell(describe());
                     return this;
                 })
                 .onMessage(CoreControl.Connect.class, msg -> {

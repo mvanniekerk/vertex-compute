@@ -25,6 +25,7 @@ import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
 import com.mvanniekerk.akka.compute.control.Control;
 import com.mvanniekerk.akka.compute.control.SystemDescription;
 import com.mvanniekerk.akka.compute.vertex.CoreLog;
+import com.mvanniekerk.akka.compute.vertex.VertexDescription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,6 +77,7 @@ public class HttpServerVector extends AllDirectives {
 
     private record CreateVertex(String name, String code) {}
     private record LoadCode(String code) {}
+    private record LoadName(String name) {}
     private record Link(String source, String target) {}
 
     private Route createRoute() {
@@ -84,6 +86,7 @@ public class HttpServerVector extends AllDirectives {
                 path("createvertex", this::createVertexRoute),
                 pathPrefix("send", this::sendRoute),
                 pathPrefix("code", this::loadCodeRoute),
+                pathPrefix("name", this::loadNameRoute),
                 path("link", this::linkRoute),
                 path("ws", this::wsRoute)
         );
@@ -158,9 +161,20 @@ public class HttpServerVector extends AllDirectives {
 
     private Route loadCodeRoute() {
         return post(() -> path(id -> entity(Jackson.unmarshaller(LoadCode.class), code -> {
-            CompletionStage<Control.LoadCodeReply> reply = AskPattern.ask(
+            CompletionStage<VertexDescription> reply = AskPattern.ask(
                     control,
                     replyTo -> new Control.LoadCode(replyTo, id, code.code),
+                    TIMEOUT,
+                    system.scheduler());
+            return onSuccess(reply, content -> complete(StatusCodes.OK, content, Jackson.marshaller()));
+        })));
+    }
+
+    private Route loadNameRoute() {
+        return post(() -> path(id -> entity(Jackson.unmarshaller(LoadName.class), code -> {
+            CompletionStage<VertexDescription> reply = AskPattern.ask(
+                    control,
+                    replyTo -> new Control.LoadName(replyTo, id, code.name),
                     TIMEOUT,
                     system.scheduler());
             return onSuccess(reply, content -> complete(StatusCodes.OK, content, Jackson.marshaller()));
