@@ -9,43 +9,28 @@ import akka.actor.typed.javadsl.Receive;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class Aggregator<Reply, Aggregate> extends AbstractBehavior<Aggregator.Command> {
+public class Aggregator<Reply, Aggregate> extends AbstractBehavior<Aggregator.Message> {
 
-    interface Command {}
+    interface Message {}
+    private record ReceiveTimeout() implements Message {}
+    private record WrappedReply<T>(T reply) implements Message {}
 
-    private enum ReceiveTimeout implements Command {
-        INSTANCE
-    }
-
-    private class WrappedReply implements Command {
-        final Reply reply;
-
-        private WrappedReply(Reply reply) {
-            this.reply = reply;
+    public static <R, A> Behavior<Message> create(Class<R> replyClass, Consumer<ActorRef<R>> sendRequests,
+                                                  int expectedReplies, ActorRef<A> replyTo,
+                                                  Function<List<R>, A> aggregateReplies, Duration timeout) {
+        if (expectedReplies == 0) {
+            var result = aggregateReplies.apply(Collections.emptyList());
+            replyTo.tell(result);
+            return Behaviors.stopped();
         }
-    }
-
-    public static <R, A> Behavior<Command> create(
-            Class<R> replyClass,
-            Consumer<ActorRef<R>> sendRequests,
-            int expectedReplies,
-            ActorRef<A> replyTo,
-            Function<List<R>, A> aggregateReplies,
-            Duration timeout) {
-        return Behaviors.setup(
-                context ->
-                        new Aggregator<R, A>(
-                                replyClass,
-                                context,
-                                sendRequests,
-                                expectedReplies,
-                                replyTo,
-                                aggregateReplies,
-                                timeout));
+        return Behaviors.setup(context ->
+                new Aggregator<>(replyClass, context, sendRequests, expectedReplies, replyTo, aggregateReplies,
+                        timeout));
     }
 
     private final int expectedReplies;
@@ -53,35 +38,29 @@ public class Aggregator<Reply, Aggregate> extends AbstractBehavior<Aggregator.Co
     private final Function<List<Reply>, Aggregate> aggregateReplies;
     private final List<Reply> replies = new ArrayList<>();
 
-    private Aggregator(
-            Class<Reply> replyClass,
-            ActorContext<Command> context,
-            Consumer<ActorRef<Reply>> sendRequests,
-            int expectedReplies,
-            ActorRef<Aggregate> replyTo,
-            Function<List<Reply>, Aggregate> aggregateReplies,
-            Duration timeout) {
+    private Aggregator(Class<Reply> replyClass, ActorContext<Message> context, Consumer<ActorRef<Reply>> sendRequests,
+                       int expectedReplies, ActorRef<Aggregate> replyTo,
+                       Function<List<Reply>, Aggregate> aggregateReplies, Duration timeout) {
         super(context);
         this.expectedReplies = expectedReplies;
         this.replyTo = replyTo;
         this.aggregateReplies = aggregateReplies;
 
-        context.setReceiveTimeout(timeout, ReceiveTimeout.INSTANCE);
+        context.setReceiveTimeout(timeout, new ReceiveTimeout());
 
         ActorRef<Reply> replyAdapter = context.messageAdapter(replyClass, WrappedReply::new);
         sendRequests.accept(replyAdapter);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public Receive<Command> createReceive() {
+    public Receive<Message> createReceive() {
         return newReceiveBuilder()
                 .onMessage(WrappedReply.class, this::onReply)
                 .onMessage(ReceiveTimeout.class, notUsed -> onReceiveTimeout())
                 .build();
     }
 
-    private Behavior<Command> onReply(WrappedReply wrappedReply) {
+    private Behavior<Message> onReply(WrappedReply<Reply> wrappedReply) {
         Reply reply = wrappedReply.reply;
         replies.add(reply);
         if (replies.size() == expectedReplies) {
@@ -93,7 +72,7 @@ public class Aggregator<Reply, Aggregate> extends AbstractBehavior<Aggregator.Co
         }
     }
 
-    private Behavior<Command> onReceiveTimeout() {
+    private Behavior<Message> onReceiveTimeout() {
         Aggregate result = aggregateReplies.apply(replies);
         replyTo.tell(result);
         return Behaviors.stopped();

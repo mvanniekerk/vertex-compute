@@ -66,7 +66,7 @@ public class Control extends AbstractBehavior<Control.Message> {
                     ArrayList<ActorRef<VertexMessage>> vertices = new ArrayList<>(verticesById.values());
                     getContext().spawnAnonymous(Aggregator.create(
                             VertexDescription.class,
-                            replyTo -> vertices.forEach(vertex -> vertex.tell(new CoreControl.Describe(replyTo.narrow()))),
+                            replyTo -> vertices.forEach(vertex -> vertex.tell(new CoreControl.Describe(replyTo))),
                             vertices.size(),
                             getContext().getSelf(),
                             replies -> new VertexDescribeAggregator(msg.replyTo(), replies),
