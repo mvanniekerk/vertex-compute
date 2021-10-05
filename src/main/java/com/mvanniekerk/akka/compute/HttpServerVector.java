@@ -24,6 +24,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
 import com.mvanniekerk.akka.compute.control.Control;
 import com.mvanniekerk.akka.compute.control.SystemDescription;
+import com.mvanniekerk.akka.compute.control.WebSocketMessage;
 import com.mvanniekerk.akka.compute.vertex.CoreLog;
 import com.mvanniekerk.akka.compute.vertex.VertexDescription;
 import org.slf4j.Logger;
@@ -120,7 +121,7 @@ public class HttpServerVector extends AllDirectives {
 
         Sink<Message, NotUsed> sink = createLogMessageSink(sessionId);
 
-        Flow<Message, CoreLog.LogMessage, NotUsed> flow = Flow.fromSinkAndSource(sink, source);
+        var flow = Flow.fromSinkAndSource(sink, source);
 
         return flow.map(objectMapper::writeValueAsString)
                 .map((akka.japi.function.Function<String, Message>) TextMessage::create);
@@ -137,8 +138,8 @@ public class HttpServerVector extends AllDirectives {
                 .toMat(actorSink, Keep.right());
     }
 
-    private Source<CoreLog.LogMessage, NotUsed> createLogMessageActorSource(String sessionId) {
-        Source<CoreLog.LogMessage, ActorRef<CoreLog.LogMessage>> source = ActorSource.actorRef(
+    private Source<WebSocketMessage, NotUsed> createLogMessageActorSource(String sessionId) {
+        Source<WebSocketMessage, ActorRef<WebSocketMessage>> source = ActorSource.actorRef(
                 msg -> false,
                 msg -> Optional.empty(),
                 500,

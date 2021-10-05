@@ -6,18 +6,20 @@ import akka.actor.typed.javadsl.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.mvanniekerk.akka.compute.compute.Compiler;
 import com.mvanniekerk.akka.compute.compute.ComputeCore;
-import com.mvanniekerk.akka.compute.compute.NoopCompute;
 import com.mvanniekerk.akka.compute.compute.StaticClassNameCompiler;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.*;
 
 public class Core extends AbstractBehavior<VertexMessage> {
-    private static final Logger LOGGER = LoggerFactory.getLogger(Core.class);
     private static final int MAX_LOG_MESSAGES = 100;
+    private static final int ROLLING_AVERAGE_DURATION_SECONDS = 10;
+
+    public static Behavior<VertexMessage> create(String id, String name, String code) {
+        return Behaviors.setup(context ->
+                Behaviors.withTimers(scheduler -> new Core(context, scheduler, id, name, code)));
+    }
 
     private final Compiler compiler = new StaticClassNameCompiler();
     private final TimerScheduler<VertexMessage> scheduler;
@@ -26,11 +28,14 @@ public class Core extends AbstractBehavior<VertexMessage> {
     private final Map<String, ActorRef<? super CoreConsumer>> targetsById = new HashMap<>();
     private final Map<String, Runnable> periodicRunnableByKey = new HashMap<>();
     private final Queue<CoreLog.LogMessage> log = new ArrayDeque<>();
+    private final Queue<Long> messageReceiveTimestamps = new ArrayDeque<>();
 
     private String name;
     private String code;
     private ComputeCore process;
     private ActorRef<CoreLog.LogMessage> logSubscriber;
+    private long messagesSent = 0;
+    private long messagesReceived = 0;
 
     private Core(ActorContext<VertexMessage> context, TimerScheduler<VertexMessage> scheduler, String id, String name, String code) {
         super(context);
@@ -41,12 +46,12 @@ public class Core extends AbstractBehavior<VertexMessage> {
         process = compiler.compile(code).apply(this);
     }
 
-    public static Behavior<VertexMessage> create(String id, String name, String code) {
-        return Behaviors.setup(context ->
-                Behaviors.withTimers(scheduler -> new Core(context, scheduler, id, name, code)));
-    }
-
     public void send(JsonNode message) {
+        var now = System.currentTimeMillis();
+        removeOldMessageReceiveTimestamps(now);
+        messageReceiveTimestamps.add(now);
+        messagesSent++;
+
         targetsById.forEach((id, target) -> target.tell(new CoreConsumer.Message(message)));
     }
 
@@ -82,6 +87,7 @@ public class Core extends AbstractBehavior<VertexMessage> {
     public Receive<VertexMessage> createReceive() {
         return newReceiveBuilder()
                 .onMessage(CoreConsumer.Message.class, msg -> {
+                    messagesReceived++;
                     JsonNode body = msg.body();
                     if (process != null) {
                         process.receive(body);
@@ -108,6 +114,15 @@ public class Core extends AbstractBehavior<VertexMessage> {
                     return this;
                 })
 
+                .onMessage(CoreMetrics.GetMetrics.class, msg -> {
+                    var now = System.currentTimeMillis();
+                    removeOldMessageReceiveTimestamps(now);
+                    var avgMessages = 1.0 * messageReceiveTimestamps.size() / ROLLING_AVERAGE_DURATION_SECONDS;
+                    var metrics = new CoreMetrics.Metrics(avgMessages, messagesReceived, messagesSent);
+                    msg.replyTo().tell(new CoreMetrics.MetricsWithId(id, metrics));
+                    return this;
+                })
+
                 .onMessage(CoreControl.Describe.class, msg -> {
                     msg.replyTo().tell(describe());
                     return this;
@@ -120,6 +135,9 @@ public class Core extends AbstractBehavior<VertexMessage> {
                     periodicRunnableByKey.keySet().forEach(scheduler::cancel);
                     periodicRunnableByKey.clear();
                     log.clear();
+                    messageReceiveTimestamps.clear();
+                    messagesSent = 0;
+                    messagesReceived = 0;
                     code = msg.code();
                     process = compiler.compile(code).apply(this);
                     msg.replyTo().tell(describe());
@@ -135,5 +153,16 @@ public class Core extends AbstractBehavior<VertexMessage> {
                     return this;
                 })
                 .build();
+    }
+
+    private void removeOldMessageReceiveTimestamps(long now) {
+        for (Iterator<Long> iterator = messageReceiveTimestamps.iterator(); iterator.hasNext(); ) {
+            Long timestamp = iterator.next();
+            if (timestamp < now - ROLLING_AVERAGE_DURATION_SECONDS * 1000) {
+                iterator.remove();
+            } else {
+                break;
+            }
+        }
     }
 }

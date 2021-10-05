@@ -2,10 +2,7 @@ package com.mvanniekerk.akka.compute.control;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
-import akka.actor.typed.javadsl.AbstractBehavior;
-import akka.actor.typed.javadsl.ActorContext;
-import akka.actor.typed.javadsl.Behaviors;
-import akka.actor.typed.javadsl.Receive;
+import akka.actor.typed.javadsl.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.mvanniekerk.akka.compute.util.Aggregator;
 import com.mvanniekerk.akka.compute.vertex.*;
@@ -13,6 +10,7 @@ import com.mvanniekerk.akka.compute.vertex.*;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class Control extends AbstractBehavior<Control.Message> {
     public interface Message {}
@@ -31,32 +29,34 @@ public class Control extends AbstractBehavior<Control.Message> {
                                             List<VertexDescription> vertices) implements Message {}
 
     // WS push messages
-    public record RegisterWebSocket(String sessionId, ActorRef<CoreLog.LogMessage> socket) implements Message {}
+    public record RegisterWebSocket(String sessionId, ActorRef<WebSocketMessage> socket) implements Message {}
     public record WrappedLog(CoreLog.LogMessage message) implements Message {}
-    public record LogSubscribe(String session, String id) implements Message {}
+    public record LogSubscribe(String sessionId, String id) implements Message {}
+
+    // metrics
+    public record RequestMetrics() implements Message {}
+    public record VertexMetricsAggregator(Map<String, CoreMetrics.Metrics> metricsByVertexId) implements Message {}
 
     // TODO: receive HTTP should be split to own actor, set up direct link and get out of the way
     public record ReceiveHttp(String id, JsonNode body) implements Message {}
 
-    // FIELDS
+    public static Behavior<Message> create() {
+        return Behaviors.setup(context ->
+                Behaviors.withTimers(scheduler -> new Control(context, scheduler)));
+    }
 
     private final Map<String, ActorRef<VertexMessage>> verticesById = new HashMap<>();
     private final Map<String, SystemDescription.Edge> edgesById = new HashMap<>();
     private final ActorRef<CoreLog.LogMessage> logMessageAdapter;
 
     private final Map<String, String> subscriptionsBySessionId = new HashMap<>();
-    private final Map<String, ActorRef<CoreLog.LogMessage>> socketsBySessionId = new HashMap<>();
+    private final Map<String, ActorRef<WebSocketMessage>> socketsBySessionId = new HashMap<>();
     private final NameGenerator nameGenerator = new NameGenerator();
 
-    // CODE
-
-    public static Behavior<Message> create() {
-        return Behaviors.setup(Control::new);
-    }
-
-    private Control(ActorContext<Message> context) {
+    private Control(ActorContext<Message> context, TimerScheduler<Message> scheduler) {
         super(context);
         logMessageAdapter = getContext().messageAdapter(CoreLog.LogMessage.class, WrappedLog::new);
+        scheduler.startTimerAtFixedRate(new RequestMetrics(), Duration.ofSeconds(1));
     }
 
     @Override
@@ -78,6 +78,7 @@ public class Control extends AbstractBehavior<Control.Message> {
                     msg.replyTo().tell(description);
                     return this;
                 })
+
                 .onMessage(CreateVertex.class, msg -> {
                     String id = UUID.randomUUID().toString();
                     String name;
@@ -116,16 +117,44 @@ public class Control extends AbstractBehavior<Control.Message> {
                     return this;
                 })
 
+                .onMessage(RequestMetrics.class, msg -> {
+                    var vertices = new ArrayList<>(verticesById.values());
+                    getContext().spawnAnonymous(Aggregator.create(
+                            CoreMetrics.MetricsWithId.class,
+                            replyTo -> vertices.forEach(vertex -> vertex.tell(new CoreMetrics.GetMetrics(replyTo))),
+                            vertices.size(),
+                            getContext().getSelf(),
+                            replies -> {
+                                var metrics = replies.stream()
+                                        .collect(Collectors.toMap(CoreMetrics.MetricsWithId::vertexId,
+                                                CoreMetrics.MetricsWithId::metrics));
+                                return new VertexMetricsAggregator(metrics);
+                            },
+                            Duration.ofSeconds(5)));
+                    return this;
+                })
+                .onMessage(VertexMetricsAggregator.class, msg -> {
+                    var reply = new WebSocketMessage.MetricsAggregate("metrics", msg);
+                    socketsBySessionId.values().forEach(socket -> socket.tell(reply));
+                    return this;
+                })
+
+
                 .onMessage(LogSubscribe.class, msg -> {
-                    var subscription = subscriptionsBySessionId.get(msg.session);
+                    var subscription = subscriptionsBySessionId.get(msg.sessionId);
                     if (subscription != null) {
+                        // close previous subscription, if it exists.
                         var oldVertex = verticesById.get(subscription);
                         oldVertex.tell(new CoreLog.UnsubscribeLog());
                     }
                     if (msg.id != null) {
-                        subscriptionsBySessionId.put(msg.session, msg.id);
+                        subscriptionsBySessionId.put(msg.sessionId, msg.id);
                         ActorRef<VertexMessage> newVertex = verticesById.get(msg.id);
                         newVertex.tell(new CoreLog.SubscribeLog(logMessageAdapter));
+                    } else {
+                        // socket closed, clean up session
+                        subscriptionsBySessionId.remove(msg.sessionId);
+                        socketsBySessionId.remove(msg.sessionId);
                     }
                     return this;
                 })
@@ -135,9 +164,8 @@ public class Control extends AbstractBehavior<Control.Message> {
                     subscriptionsBySessionId.entrySet().stream()
                             .filter(entry -> entry.getValue().equals(id))
                             .map(Map.Entry::getKey)
-                            .findFirst()
                             .map(socketsBySessionId::get)
-                            .ifPresent(socket -> socket.tell(message));
+                            .forEach(socket -> socket.tell(new WebSocketMessage.Log("log", message)));
                     return this;
                 })
                 .onMessage(RegisterWebSocket.class, msg -> {
