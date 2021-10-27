@@ -6,6 +6,8 @@ import akka.actor.typed.javadsl.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.mvanniekerk.akka.compute.util.Aggregator;
 import com.mvanniekerk.akka.compute.vertex.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -13,6 +15,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class Control extends AbstractBehavior<Control.Message> {
+    private static final Logger LOGGER = LoggerFactory.getLogger(Control.class);
     public interface Message {}
 
     // HTTP requests
@@ -20,7 +23,7 @@ public class Control extends AbstractBehavior<Control.Message> {
     public record CreateVertex(ActorRef<VertexReply> replyTo, String name, String code) implements Message {}
     public record VertexReply(String status, VertexDescription description) {}
     public record LoadCode(ActorRef<VertexDescription> replyTo, String id, String code) implements Message {}
-    public record LoadName(ActorRef<VertexDescription> replyTo, String id, String code) implements Message {}
+    public record LoadName(ActorRef<VertexDescription> replyTo, String id, String name) implements Message {}
     public record LinkVertices(ActorRef<LinkReply> replyTo, String from, String to) implements Message {}
     public record LinkReply(String status, String id) {}
 
@@ -29,7 +32,7 @@ public class Control extends AbstractBehavior<Control.Message> {
                                             List<VertexDescription> vertices) implements Message {}
 
     // WS push messages
-    public record RegisterWebSocket(String sessionId, ActorRef<WebSocketMessage> socket) implements Message {}
+    public record RegisterControlWebSocket(String sessionId, ActorRef<WebSocketMessage> socket) implements Message {}
     public record WrappedLog(CoreLog.LogMessage message) implements Message {}
     public record LogSubscribe(String sessionId, String id) implements Message {}
 
@@ -37,14 +40,14 @@ public class Control extends AbstractBehavior<Control.Message> {
     public record RequestMetrics() implements Message {}
     public record VertexMetricsAggregator(Map<String, CoreMetrics.Metrics> metricsByVertexId) implements Message {}
 
-    // TODO: receive HTTP should be split to own actor, set up direct link and get out of the way
-    public record ReceiveHttp(String id, JsonNode body) implements Message {}
+    public record ReceiveMsg(String name, JsonNode body) implements Message {}
 
     public static Behavior<Message> create() {
         return Behaviors.setup(context ->
                 Behaviors.withTimers(scheduler -> new Control(context, scheduler)));
     }
 
+    private final Map<String, ActorRef<VertexMessage>> verticesByName = new HashMap<>();
     private final Map<String, ActorRef<VertexMessage>> verticesById = new HashMap<>();
     private final Map<String, SystemDescription.Edge> edgesById = new HashMap<>();
     private final ActorRef<CoreLog.LogMessage> logMessageAdapter;
@@ -89,12 +92,18 @@ public class Control extends AbstractBehavior<Control.Message> {
                     }
                     ActorRef<VertexMessage> vert = getContext().spawn(Core.create(id, name, msg.code), id);
                     verticesById.put(id, vert);
+                    verticesByName.put(name, vert);
                     msg.replyTo.tell(new VertexReply("Success", new VertexDescription(id, name, msg.code)));
                     return this;
                 })
-                .onMessage(ReceiveHttp.class, msg -> {
-                    ActorRef<VertexMessage> vertActor = verticesById.get(msg.id);
-                    vertActor.tell(new CoreConsumer.Message(msg.body));
+                .onMessage(ReceiveMsg.class, msg -> {
+                    if (msg.name == null || msg.body == null) {
+                        return this;
+                    }
+                    ActorRef<VertexMessage> vertActor = verticesByName.get(msg.name);
+                    if (vertActor != null) {
+                        vertActor.tell(new CoreConsumer.Message(msg.body));
+                    }
                     return this;
                 })
                 .onMessage(LoadCode.class, msg -> {
@@ -104,7 +113,9 @@ public class Control extends AbstractBehavior<Control.Message> {
                 })
                 .onMessage(LoadName.class, msg -> {
                     var vertex = verticesById.get(msg.id);
-                    vertex.tell(new CoreControl.LoadName(msg.replyTo, msg.code));
+                    verticesByName.remove(msg.name);
+                    verticesByName.put(msg.name, vertex);
+                    vertex.tell(new CoreControl.LoadName(msg.replyTo, msg.name));
                     return this;
                 })
                 .onMessage(LinkVertices.class, msg -> {
@@ -168,7 +179,7 @@ public class Control extends AbstractBehavior<Control.Message> {
                             .forEach(socket -> socket.tell(new WebSocketMessage.Log("log", message)));
                     return this;
                 })
-                .onMessage(RegisterWebSocket.class, msg -> {
+                .onMessage(RegisterControlWebSocket.class, msg -> {
                     getContext().getLog().info("Register ws: {}", msg);
                     socketsBySessionId.put(msg.sessionId, msg.socket);
                     return this;

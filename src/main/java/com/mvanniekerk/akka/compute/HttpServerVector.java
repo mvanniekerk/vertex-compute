@@ -19,22 +19,16 @@ import akka.stream.javadsl.Source;
 import akka.stream.typed.javadsl.ActorSink;
 import akka.stream.typed.javadsl.ActorSource;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
 import com.mvanniekerk.akka.compute.control.Control;
 import com.mvanniekerk.akka.compute.control.SystemDescription;
 import com.mvanniekerk.akka.compute.control.WebSocketMessage;
-import com.mvanniekerk.akka.compute.vertex.CoreLog;
 import com.mvanniekerk.akka.compute.vertex.VertexDescription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.text.SimpleDateFormat;
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.UUID;
@@ -86,6 +80,7 @@ public class HttpServerVector extends AllDirectives {
                 path("state", this::stateRoute),
                 path("createvertex", this::createVertexRoute),
                 pathPrefix("send", this::sendRoute),
+                path("sendws", this::sendWsRoute),
                 pathPrefix("code", this::loadCodeRoute),
                 pathPrefix("name", this::loadNameRoute),
                 path("link", this::linkRoute),
@@ -108,11 +103,30 @@ public class HttpServerVector extends AllDirectives {
         return handleErrors.apply(() -> cors(() -> handleErrors.apply(() -> route)));
     }
 
-    private Route wsRoute() {
-        return handleWebSocketMessages(createWebsocketFlow());
+    private Route sendWsRoute() {
+        Source<Message, NotUsed> source = Source.never();
+        var flow = Flow.fromSinkAndSource(createSendMessageSink(), source);
+
+        return handleWebSocketMessages(flow);
     }
 
-    private Flow<Message, Message, NotUsed> createWebsocketFlow() {
+    private Sink<Message, NotUsed> createSendMessageSink() {
+        Sink<Control.Message, NotUsed> actorSink = ActorSink.actorRef(control,
+                new Control.ReceiveMsg(null, null),
+                error -> new Control.ReceiveMsg("fail", null));
+
+        var objectMapper = new ObjectMapper();
+        return Flow.of(Message.class)
+                .map(msg -> msg.asTextMessage().getStrictText())
+                .<Control.Message>map(text -> objectMapper.readValue(text, Control.ReceiveMsg.class))
+                .toMat(actorSink, Keep.right());
+    }
+
+    private Route wsRoute() {
+        return handleWebSocketMessages(createControlWebsocketFlow());
+    }
+
+    private Flow<Message, Message, NotUsed> createControlWebsocketFlow() {
         var sessionId = UUID.randomUUID().toString();
         var source = createLogMessageActorSource(sessionId);
 
@@ -145,7 +159,7 @@ public class HttpServerVector extends AllDirectives {
                 500,
                 OverflowStrategy.dropTail());
         var actorRefAndSource = source.preMaterialize(system);
-        control.tell(new Control.RegisterWebSocket(sessionId, actorRefAndSource.first()));
+        control.tell(new Control.RegisterControlWebSocket(sessionId, actorRefAndSource.first()));
         return actorRefAndSource.second();
     }
 
@@ -184,7 +198,7 @@ public class HttpServerVector extends AllDirectives {
 
     private Route sendRoute() {
         return post(() -> path(id -> entity(genericJsonUnmarshaller(), body -> {
-            control.tell(new Control.ReceiveHttp(id, body));
+            control.tell(new Control.ReceiveMsg(id, body));
             return complete(StatusCodes.OK, "message sent", Jackson.marshaller());
         })));
     }
