@@ -3,19 +3,20 @@ package com.mvanniekerk.akka.compute.compute;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.mvanniekerk.akka.compute.vertex.Core;
 
-public class LoggerSink extends ComputeCore {
+public class Logger extends ComputeCore {
 
-    public LoggerSink(Core consumer) {
+    public Logger(Core consumer) {
         super(consumer);
     }
 
     @Override
     public void receive(JsonNode message) {
        log(message.toString());
+       send(message);
     }
 
     @Override
     public String getName() {
-        return LoggerSink.class.getSimpleName();
+        return Logger.class.getSimpleName();
     }
 }

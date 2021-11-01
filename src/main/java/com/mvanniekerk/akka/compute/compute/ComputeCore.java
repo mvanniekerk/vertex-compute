@@ -38,6 +38,10 @@ public abstract class ComputeCore {
         core.schedulePeriodic(key, interval, runnable);
     }
 
+    public final void scheduleOnce(String key, Duration delay, Runnable runnable) {
+        core.scheduleOnce(key, delay, runnable);
+    }
+
     public final void stopPeriodic(String key) {
         core.stopPeriodic(key);
     }

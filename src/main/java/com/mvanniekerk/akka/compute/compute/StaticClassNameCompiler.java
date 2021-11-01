@@ -15,9 +15,10 @@ public class StaticClassNameCompiler implements Compiler {
         computeBuilders = new HashMap<>();
         computeBuilders.put(NoopCompute.class.getSimpleName(), NoopCompute::new);
         computeBuilders.put(Splitter.class.getSimpleName(), Splitter::new);
-        computeBuilders.put(LoggerSink.class.getSimpleName(), LoggerSink::new);
+        computeBuilders.put(Logger.class.getSimpleName(), Logger::new);
         computeBuilders.put(NumberSource.class.getSimpleName(), NumberSource::new);
         computeBuilders.put(PrimeClassifier.class.getSimpleName(), PrimeClassifier::new);
+        computeBuilders.put(SoundSink.class.getSimpleName(), SoundSink::new);
     }
 
     @Override

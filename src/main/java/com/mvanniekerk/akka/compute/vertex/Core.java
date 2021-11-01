@@ -71,7 +71,15 @@ public class Core extends AbstractBehavior<VertexMessage> {
             stopPeriodic(key);
         }
         periodicRunnableByKey.put(key, runnable);
-        scheduler.startTimerAtFixedRate(key, new CoreConsumer.Tick(key), interval);
+        scheduler.startTimerAtFixedRate(key, new CoreConsumer.Tick(key), Duration.ofMillis(0), interval);
+    }
+
+    public void scheduleOnce(String key, Duration delay, Runnable runnable) {
+        if (periodicRunnableByKey.containsKey(key)) {
+            stopPeriodic(key);
+        }
+        periodicRunnableByKey.put(key, runnable);
+        scheduler.startSingleTimer(key, new CoreConsumer.Tick(key), delay);
     }
 
     public void stopPeriodic(String key) {
