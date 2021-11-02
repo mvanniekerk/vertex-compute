@@ -19,6 +19,7 @@ public class StaticClassNameCompiler implements Compiler {
         computeBuilders.put(NumberSource.class.getSimpleName(), NumberSource::new);
         computeBuilders.put(PrimeClassifier.class.getSimpleName(), PrimeClassifier::new);
         computeBuilders.put(SoundSink.class.getSimpleName(), SoundSink::new);
+        computeBuilders.put(NoteSynthesizer.class.getSimpleName(), NoteSynthesizer::new);
     }
 
     @Override
