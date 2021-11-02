@@ -20,6 +20,7 @@ public class Control extends AbstractBehavior<Control.Message> {
 
     // HTTP requests
     public record GetStateRequest(ActorRef<SystemDescription> replyTo) implements Message {}
+    public record LoadStateRequest(SystemDescription system) implements Message {}
     public record CreateVertex(ActorRef<VertexReply> replyTo, String name, String code) implements Message {}
     public record VertexReply(String status, VertexDescription description) {}
     public record LoadCode(ActorRef<VertexDescription> replyTo, String id, String code) implements Message {}
@@ -82,18 +83,20 @@ public class Control extends AbstractBehavior<Control.Message> {
                     return this;
                 })
 
+                .onMessage(LoadStateRequest.class, msg -> {
+                    var system = msg.system;
+                    for (VertexDescription vertex : system.vertices()) {
+                        createVertex(vertex.id(), vertex.name(), vertex.code());
+                    }
+                    for (SystemDescription.Edge edge : system.edges()) {
+                        linkVertices(edge.id(), edge.from(), edge.to());
+                    }
+                    return this;
+                })
                 .onMessage(CreateVertex.class, msg -> {
                     String id = UUID.randomUUID().toString();
-                    String name;
-                    if (msg.name == null || msg.name.isBlank()) {
-                        name = nameGenerator.generateName();
-                    } else {
-                        name = msg.name;
-                    }
-                    ActorRef<VertexMessage> vert = getContext().spawn(Core.create(id, name, msg.code), id);
-                    verticesById.put(id, vert);
-                    verticesByName.put(name, vert);
-                    msg.replyTo.tell(new VertexReply("Success", new VertexDescription(id, name, msg.code)));
+                    createVertex(id, msg.name, msg.code);
+                    msg.replyTo.tell(new VertexReply("Success", new VertexDescription(id, msg.name, msg.code)));
                     return this;
                 })
                 .onMessage(ReceiveMsg.class, msg -> {
@@ -120,14 +123,10 @@ public class Control extends AbstractBehavior<Control.Message> {
                 })
                 .onMessage(LinkVertices.class, msg -> {
                     String id = UUID.randomUUID().toString();
-                    ActorRef<VertexMessage> source = verticesById.get(msg.from);
-                    ActorRef<VertexMessage> target = verticesById.get(msg.to);
-                    source.tell(new CoreControl.Connect(id, target));
-                    edgesById.put(id, new SystemDescription.Edge(id, msg.from, msg.to));
+                    linkVertices(id, msg.from, msg.to);
                     msg.replyTo.tell(new LinkReply("Success", id));
                     return this;
                 })
-
                 .onMessage(RequestMetrics.class, msg -> {
                     var vertices = new ArrayList<>(verticesById.values());
                     getContext().spawnAnonymous(Aggregator.create(
@@ -185,5 +184,24 @@ public class Control extends AbstractBehavior<Control.Message> {
                     return this;
                 })
                 .build();
+    }
+
+    private void linkVertices(String id, String from, String to) {
+        ActorRef<VertexMessage> source = verticesById.get(from);
+        ActorRef<VertexMessage> target = verticesById.get(to);
+        source.tell(new CoreControl.Connect(id, target));
+        edgesById.put(id, new SystemDescription.Edge(id, from, to));
+    }
+
+    private void createVertex(String id, String name, String code) {
+        String vertName;
+        if (name == null || name.isBlank()) {
+            vertName = nameGenerator.generateName();
+        } else {
+            vertName = name;
+        }
+        ActorRef<VertexMessage> vert = getContext().spawn(Core.create(id, vertName, code), id);
+        verticesById.put(id, vert);
+        verticesByName.put(vertName, vert);
     }
 }

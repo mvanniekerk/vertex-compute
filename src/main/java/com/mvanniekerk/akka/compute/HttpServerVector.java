@@ -77,7 +77,8 @@ public class HttpServerVector extends AllDirectives {
 
     private Route createRoute() {
         Route route = concat(
-                path("state", this::stateRoute),
+                path("state", this::getStateRoute),
+                path("load", this::loadStateRoute),
                 path("createvertex", this::createVertexRoute),
                 pathPrefix("send", this::sendRoute),
                 path("sendws", this::sendWsRoute),
@@ -214,7 +215,19 @@ public class HttpServerVector extends AllDirectives {
         }));
     }
 
-    private Route stateRoute() {
+    private Route loadStateRoute() {
+        return post(() -> entity(Jackson.unmarshaller(SystemDescription.class), body -> {
+            control.tell(new Control.LoadStateRequest(body));
+            CompletionStage<SystemDescription> reply = AskPattern.ask(
+                    control,
+                    Control.GetStateRequest::new,
+                    TIMEOUT,
+                    system.scheduler());
+            return onSuccess(reply, description -> complete(StatusCodes.OK, description, Jackson.marshaller()));
+        }));
+    }
+
+    private Route getStateRoute() {
         return get(() -> {
             CompletionStage<SystemDescription> reply = AskPattern.ask(
                     control,
