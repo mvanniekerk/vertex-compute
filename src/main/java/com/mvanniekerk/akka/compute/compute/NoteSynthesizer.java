@@ -24,7 +24,7 @@ public class NoteSynthesizer extends ComputeCore {
     private final int msgIntervalMs = 50;
     private int frameNr = 0;
 
-    public NoteSynthesizer(Core consumer) {
+    public NoteSynthesizer(Core consumer, String[] args) {
         super(consumer);
 
         schedulePeriodic("soundGen", Duration.ofMillis(msgIntervalMs), () -> {
