@@ -22,10 +22,15 @@ public class NoteSynthesizer extends ComputeCore {
     private final Set<Integer> releaseNotes = new HashSet<>();
     private final Set<Integer> activeNotes = new HashSet<>();
     private final int msgIntervalMs = 50;
+    private double frequencyMultiplier = 1;
     private int frameNr = 0;
 
     public NoteSynthesizer(Core consumer, String[] args) {
         super(consumer);
+
+        if (args.length > 0) {
+            frequencyMultiplier = Double.parseDouble(args[0]);
+        }
 
         schedulePeriodic("soundGen", Duration.ofMillis(msgIntervalMs), () -> {
             var soundBuff = activeNotes.stream()
@@ -146,7 +151,7 @@ public class NoteSynthesizer extends ComputeCore {
         var period = SAMPLE_RATE / freq;
         var offset = frameNr * ms / 1000.0 * SAMPLE_RATE;
         for (int i = 0; i < samples; i++) {
-            output[i] = Math.sin(2.0 * Math.PI * (i + offset) / period);
+            output[i] = Math.sin(2.0 * Math.PI * frequencyMultiplier * (i + offset) / period);
         }
 
         return output;

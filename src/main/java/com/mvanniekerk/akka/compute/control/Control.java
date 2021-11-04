@@ -95,8 +95,8 @@ public class Control extends AbstractBehavior<Control.Message> {
                 })
                 .onMessage(CreateVertex.class, msg -> {
                     String id = UUID.randomUUID().toString();
-                    createVertex(id, msg.name, msg.code);
-                    msg.replyTo.tell(new VertexReply("Success", new VertexDescription(id, msg.name, msg.code)));
+                    var description = createVertex(id, msg.name, msg.code);
+                    msg.replyTo.tell(new VertexReply("Success", description));
                     return this;
                 })
                 .onMessage(ReceiveMsg.class, msg -> {
@@ -193,7 +193,7 @@ public class Control extends AbstractBehavior<Control.Message> {
         edgesById.put(id, new SystemDescription.Edge(id, from, to));
     }
 
-    private void createVertex(String id, String name, String code) {
+    private VertexDescription createVertex(String id, String name, String code) {
         String vertName;
         if (name == null || name.isBlank()) {
             vertName = nameGenerator.generateName();
@@ -203,5 +203,6 @@ public class Control extends AbstractBehavior<Control.Message> {
         ActorRef<VertexMessage> vert = getContext().spawn(Core.create(id, vertName, code), id);
         verticesById.put(id, vert);
         verticesByName.put(vertName, vert);
+        return new VertexDescription(id, vertName, code);
     }
 }
