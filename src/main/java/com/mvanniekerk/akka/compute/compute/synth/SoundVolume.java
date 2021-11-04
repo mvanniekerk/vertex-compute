@@ -1,6 +1,7 @@
-package com.mvanniekerk.akka.compute.compute;
+package com.mvanniekerk.akka.compute.compute.synth;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.mvanniekerk.akka.compute.compute.ComputeCore;
 import com.mvanniekerk.akka.compute.vertex.Core;
 
 public class SoundVolume extends ComputeCore {
@@ -16,9 +17,9 @@ public class SoundVolume extends ComputeCore {
 
     @Override
     public void receive(JsonNode message) {
-        var soundBuffer = convert(message, NoteSynthesizer.SoundBuffer.class);
+        var soundBuffer = convert(message, SoundBuffer.class);
         var outArr = multArray(volume, soundBuffer.buffer());
-        send(new NoteSynthesizer.SoundBuffer(soundBuffer.frameNr(), outArr));
+        send(new SoundBuffer(soundBuffer.frameNr(), outArr));
     }
 
     private static double[] multArray(double left, double[] right) {

@@ -1,5 +1,6 @@
 package com.mvanniekerk.akka.compute.compute;
 
+import com.mvanniekerk.akka.compute.compute.synth.*;
 import com.mvanniekerk.akka.compute.vertex.Core;
 
 import java.util.Arrays;
@@ -24,6 +25,7 @@ public class StaticClassNameCompiler implements Compiler {
         computeBuilders.put(NoteSynthesizer.class.getSimpleName(), NoteSynthesizer::new);
         computeBuilders.put(SoundVolume.class.getSimpleName(), SoundVolume::new);
         computeBuilders.put(NoteEqAggregator.class.getSimpleName(), (core, args) -> new NoteEqAggregator(core));
+        computeBuilders.put(NoteReceiver.class.getSimpleName(), NoteReceiver::new);
     }
 
     @Override

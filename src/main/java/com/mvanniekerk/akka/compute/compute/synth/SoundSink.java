@@ -1,6 +1,7 @@
-package com.mvanniekerk.akka.compute.compute;
+package com.mvanniekerk.akka.compute.compute.synth;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.mvanniekerk.akka.compute.compute.ComputeCore;
 import com.mvanniekerk.akka.compute.vertex.Core;
 
 import javax.sound.sampled.AudioFormat;
@@ -25,7 +26,7 @@ public class SoundSink extends ComputeCore {
 
     @Override
     public void receive(JsonNode message) {
-        var soundBuffer = convert(message, NoteSynthesizer.SoundBuffer.class);
+        var soundBuffer = convert(message, SoundBuffer.class);
         if (!started && soundBuffer.frameNr() > 0) {
             new Thread(player).start();
             started = true;
