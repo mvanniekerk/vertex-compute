@@ -14,8 +14,4 @@ public class NoopCompute extends ComputeCore {
         // NOOP
     }
 
-    @Override
-    public String getName() {
-        return NoopCompute.class.getSimpleName();
-    }
 }

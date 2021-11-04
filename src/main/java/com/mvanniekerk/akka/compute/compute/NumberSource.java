@@ -29,8 +29,4 @@ public class NumberSource extends ComputeCore {
         // NOOP
     }
 
-    @Override
-    public String getName() {
-        return NumberSource.class.getSimpleName();
-    }
 }

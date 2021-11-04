@@ -35,8 +35,4 @@ public class PrimeClassifier extends ComputeCore {
         return true;
     }
 
-    @Override
-    public String getName() {
-        return PrimeClassifier.class.getSimpleName();
-    }
 }

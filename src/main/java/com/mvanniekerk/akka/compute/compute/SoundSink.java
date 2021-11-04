@@ -1,8 +1,6 @@
 package com.mvanniekerk.akka.compute.compute;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mvanniekerk.akka.compute.vertex.Core;
 
 import javax.sound.sampled.AudioFormat;
@@ -12,7 +10,6 @@ import javax.sound.sampled.SourceDataLine;
 
 public class SoundSink extends ComputeCore {
     static final int SAMPLE_RATE = 44100;
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final Player player;
     private boolean started = false;
@@ -28,22 +25,21 @@ public class SoundSink extends ComputeCore {
 
     @Override
     public void receive(JsonNode message) {
-        try {
-            var soundBuffer = OBJECT_MAPPER.treeToValue(message, NoteSynthesizer.SoundBuffer.class);
-            if (!started && soundBuffer.frameNr() > 0) {
-                new Thread(player).start();
-                started = true;
-                log("Started the dedicated sound thread...");
-            }
-            player.writeToBuffer(soundBuffer.buffer());
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
+        var soundBuffer = convert(message, NoteSynthesizer.SoundBuffer.class);
+        if (!started && soundBuffer.frameNr() > 0) {
+            new Thread(player).start();
+            started = true;
+            log("Started the dedicated sound thread...");
         }
+        player.writeToBuffer(asBytes(soundBuffer.buffer()));
     }
 
-    @Override
-    public String getName() {
-        return SoundSink.class.getSimpleName();
+    private static byte[] asBytes(double[] in) {
+        var output = new byte[in.length];
+        for (int i = 0; i < in.length; i++) {
+            output[i] = (byte) (in[i] * 127f);
+        }
+        return output;
     }
 
     private static class Player implements Runnable {

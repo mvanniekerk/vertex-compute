@@ -1,5 +1,6 @@
 package com.mvanniekerk.akka.compute.compute;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -14,12 +15,19 @@ public abstract class ComputeCore {
     private final ObjectMapper objectMapper;
 
     public abstract void receive(JsonNode message);
-    public abstract String getName();
 
     public ComputeCore(Core consumer) {
         this.objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
         this.core = consumer;
+    }
+
+    public final <T> T convert(JsonNode message, Class<T> type) {
+        try {
+            return objectMapper.treeToValue(message, type);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 
     public final void send(JsonNode message) {

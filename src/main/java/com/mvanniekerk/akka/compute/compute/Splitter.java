@@ -22,8 +22,4 @@ public class Splitter extends ComputeCore {
         lines.forEach(line -> this.send(OBJECT_MAPPER.valueToTree(line)));
     }
 
-    @Override
-    public String getName() {
-        return Splitter.class.getSimpleName();
-    }
 }

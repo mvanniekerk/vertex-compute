@@ -1,13 +1,9 @@
 package com.mvanniekerk.akka.compute.compute;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mvanniekerk.akka.compute.vertex.Core;
 
 public class SoundVolume extends ComputeCore {
-
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final double volume;
 
@@ -20,16 +16,9 @@ public class SoundVolume extends ComputeCore {
 
     @Override
     public void receive(JsonNode message) {
-        try {
-            var soundBuffer = OBJECT_MAPPER.treeToValue(message, NoteSynthesizer.SoundBuffer.class);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public String getName() {
-        return SoundVolume.class.getSimpleName();
+        var soundBuffer = convert(message, NoteSynthesizer.SoundBuffer.class);
+        var outArr = multArray(volume, soundBuffer.buffer());
+        send(new NoteSynthesizer.SoundBuffer(soundBuffer.frameNr(), outArr));
     }
 
     private static double[] multArray(double left, double[] right) {

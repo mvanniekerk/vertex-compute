@@ -15,8 +15,4 @@ public class Logger extends ComputeCore {
        send(message);
     }
 
-    @Override
-    public String getName() {
-        return Logger.class.getSimpleName();
-    }
 }

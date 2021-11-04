@@ -1,8 +1,6 @@
 package com.mvanniekerk.akka.compute.compute;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mvanniekerk.akka.compute.vertex.Core;
 
 import java.time.Duration;
@@ -14,14 +12,13 @@ import static com.mvanniekerk.akka.compute.compute.SoundSink.SAMPLE_RATE;
 
 public class NoteSynthesizer extends ComputeCore {
     private record NoteAction(String action, int midiNumber) {}
-    record SoundBuffer(long frameNr, byte[] buffer) {}
+    record SoundBuffer(long frameNr, double[] buffer) {}
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    public static final int MSG_INTERVAL_MS = 50;
 
     private final Set<Integer> attackNotes = new HashSet<>();
     private final Set<Integer> releaseNotes = new HashSet<>();
     private final Set<Integer> activeNotes = new HashSet<>();
-    private final int msgIntervalMs = 50;
     private double frequencyMultiplier = 1;
     private int frameNr = 0;
 
@@ -32,30 +29,30 @@ public class NoteSynthesizer extends ComputeCore {
             frequencyMultiplier = Double.parseDouble(args[0]);
         }
 
-        schedulePeriodic("soundGen", Duration.ofMillis(msgIntervalMs), () -> {
+        schedulePeriodic("soundGen", Duration.ofMillis(MSG_INTERVAL_MS), () -> {
             var soundBuff = activeNotes.stream()
-                    .map(note -> createSinWaveBuffer(calculateFrequency(note), msgIntervalMs, frameNr))
+                    .map(note -> createSinWaveBuffer(calculateFrequency(note), MSG_INTERVAL_MS, frameNr))
                     .reduce(NoteSynthesizer::sumArray)
-                    .orElseGet(() -> silent(msgIntervalMs));
+                    .orElseGet(() -> silent(MSG_INTERVAL_MS));
 
             var attackBuff = attackNotes.stream()
-                    .map(note -> createSinWaveBuffer(calculateFrequency(note), msgIntervalMs, frameNr))
+                    .map(note -> createSinWaveBuffer(calculateFrequency(note), MSG_INTERVAL_MS, frameNr))
                     .reduce(NoteSynthesizer::sumArray)
-                    .orElseGet(() -> silent(msgIntervalMs));
-            var attack = multArray(linearUp(msgIntervalMs), attackBuff);
+                    .orElseGet(() -> silent(MSG_INTERVAL_MS));
+            var attack = multArray(linearUp(MSG_INTERVAL_MS), attackBuff);
 
             var releaseBuff = releaseNotes.stream()
-                    .map(note -> createSinWaveBuffer(calculateFrequency(note), msgIntervalMs, frameNr))
+                    .map(note -> createSinWaveBuffer(calculateFrequency(note), MSG_INTERVAL_MS, frameNr))
                     .reduce(NoteSynthesizer::sumArray)
-                    .orElseGet(() -> silent(msgIntervalMs));
-            var release = multArray(linearDown(msgIntervalMs), releaseBuff);
+                    .orElseGet(() -> silent(MSG_INTERVAL_MS));
+            var release = multArray(linearDown(MSG_INTERVAL_MS), releaseBuff);
 
             var sounds = Stream.of(soundBuff, attack, release)
                     .reduce(NoteSynthesizer::sumArray).orElseThrow();
 
             var noteCount = activeNotes.size() + attackNotes.size() + releaseNotes.size();
             var sinVolume = multArray(1.0 / noteCount, sounds);
-            send(new SoundBuffer(frameNr, asBytes(sinVolume)));
+            send(new SoundBuffer(frameNr, sinVolume));
 
             activeNotes.addAll(attackNotes);
             attackNotes.clear();
@@ -66,36 +63,19 @@ public class NoteSynthesizer extends ComputeCore {
 
     @Override
     public void receive(JsonNode message) {
-        try {
-            var noteAction = OBJECT_MAPPER.treeToValue(message, NoteAction.class);
-            if (noteAction.action.equals("play")) {
-                attackNotes.add(noteAction.midiNumber);
-            } else { // stop
-                attackNotes.remove(noteAction.midiNumber);
-                activeNotes.remove(noteAction.midiNumber);
-                releaseNotes.add(noteAction.midiNumber);
-            }
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
+        var noteAction = convert(message, NoteAction.class);
+        if (noteAction.action.equals("play")) {
+            attackNotes.add(noteAction.midiNumber);
+        } else { // stop
+            attackNotes.remove(noteAction.midiNumber);
+            activeNotes.remove(noteAction.midiNumber);
+            releaseNotes.add(noteAction.midiNumber);
         }
-    }
-
-    @Override
-    public String getName() {
-        return NoteSynthesizer.class.getSimpleName();
     }
 
     private static double calculateFrequency(int noteValue) {
         final var a = Math.pow(2, 1. / 12);
         return 440 * Math.pow(a, noteValue - 48);
-    }
-
-    private static byte[] asBytes(double[] in) {
-        var output = new byte[in.length];
-        for (int i = 0; i < in.length; i++) {
-            output[i] = (byte) (in[i] * 127f);
-        }
-        return output;
     }
 
     private static double[] sumArray(double[] left, double[] right) {
