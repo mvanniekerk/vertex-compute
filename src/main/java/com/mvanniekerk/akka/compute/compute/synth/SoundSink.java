@@ -10,7 +10,6 @@ import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.SourceDataLine;
 
 public class SoundSink extends ComputeCore {
-    static final int SAMPLE_RATE = 44100;
 
     private final Player player;
     private boolean started = false;
@@ -18,7 +17,7 @@ public class SoundSink extends ComputeCore {
     public SoundSink(Core consumer) {
         super(consumer);
         try {
-            player = new Player(SAMPLE_RATE);
+            player = new Player(SoundUtil.SAMPLE_RATE);
         } catch (LineUnavailableException e) {
             throw new RuntimeException(e);
         }
@@ -57,7 +56,7 @@ public class SoundSink extends ComputeCore {
         }
 
         public Player(int bufferSize) throws LineUnavailableException {
-            final AudioFormat af = new AudioFormat(SAMPLE_RATE, 8, 1, true, true);
+            final AudioFormat af = new AudioFormat(SoundUtil.SAMPLE_RATE, 8, 1, true, true);
             line = AudioSystem.getSourceDataLine(af);
             this.bufferSize = bufferSize;
             line.open(af, bufferSize);

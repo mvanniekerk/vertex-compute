@@ -5,7 +5,6 @@ import com.mvanniekerk.akka.compute.compute.ComputeCore;
 import com.mvanniekerk.akka.compute.vertex.Core;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,7 +13,8 @@ import java.util.stream.Collectors;
 public class NoteReceiver extends ComputeCore {
     private record NoteAction(String action, int midiNumber) {}
     private record Note(int midiNumber, long startFrame, long endFrame, boolean isPressed) {}
-    private record Instruction(int midiNumber, double startVolume, double endVolume) {}
+    record Instruction(int midiNumber, double startVolume, double endVolume) {}
+    record NoteInstructions(long frameNr, List<Instruction> instructions) {}
 
     private final Map<Integer, Note> notesByMidi = new HashMap<>();
 
@@ -29,8 +29,10 @@ public class NoteReceiver extends ComputeCore {
         super(consumer);
 
         schedulePeriodic("notes", Duration.ofMillis(SoundUtil.MSG_INTERVAL_MS), () -> {
-            var instructions = notesByMidi.values().stream().map(this::getInstruction).collect(Collectors.toList());
-            send(instructions);
+            var instructions = notesByMidi.values().stream()
+                    .map(this::getInstruction)
+                    .collect(Collectors.toList());
+            send(new NoteInstructions(frameNr, instructions));
             notesByMidi.values().removeIf(note -> !note.isPressed && frameNr - note.endFrame >= release - 1);
             frameNr++;
         });

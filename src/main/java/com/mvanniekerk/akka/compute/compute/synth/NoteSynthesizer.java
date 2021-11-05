@@ -4,21 +4,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.mvanniekerk.akka.compute.compute.ComputeCore;
 import com.mvanniekerk.akka.compute.vertex.Core;
 
-import java.time.Duration;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.stream.Stream;
+import java.util.ArrayList;
 
-import static com.mvanniekerk.akka.compute.compute.synth.SoundSink.SAMPLE_RATE;
+import static com.mvanniekerk.akka.compute.compute.synth.SoundUtil.MSG_INTERVAL_MS;
+import static com.mvanniekerk.akka.compute.compute.synth.SoundUtil.SAMPLE_RATE;
 
 public class NoteSynthesizer extends ComputeCore {
-    private record NoteAction(String action, int midiNumber) {}
 
-    private final Set<Integer> attackNotes = new HashSet<>();
-    private final Set<Integer> releaseNotes = new HashSet<>();
-    private final Set<Integer> activeNotes = new HashSet<>();
     private double frequencyMultiplier = 1;
-    private int frameNr = 0;
 
     public NoteSynthesizer(Core consumer, String[] args) {
         super(consumer);
@@ -26,52 +19,26 @@ public class NoteSynthesizer extends ComputeCore {
         if (args.length > 0) {
             frequencyMultiplier = Double.parseDouble(args[0]);
         }
-
-        schedulePeriodic("soundGen", Duration.ofMillis(SoundUtil.MSG_INTERVAL_MS), () -> {
-            var soundBuff = activeNotes.stream()
-                    .map(note -> createSinWaveBuffer(SoundUtil.calculateFrequency(note), SoundUtil.MSG_INTERVAL_MS, frameNr))
-                    .reduce(SoundUtil::sumArray)
-                    .orElseGet(() -> SoundUtil.silent(SoundUtil.MSG_INTERVAL_MS));
-
-            var attackBuff = attackNotes.stream()
-                    .map(note -> createSinWaveBuffer(SoundUtil.calculateFrequency(note), SoundUtil.MSG_INTERVAL_MS, frameNr))
-                    .reduce(SoundUtil::sumArray)
-                    .orElseGet(() -> SoundUtil.silent(SoundUtil.MSG_INTERVAL_MS));
-            var attack = SoundUtil.multArray(SoundUtil.linearUp(SoundUtil.MSG_INTERVAL_MS), attackBuff);
-
-            var releaseBuff = releaseNotes.stream()
-                    .map(note -> createSinWaveBuffer(SoundUtil.calculateFrequency(note), SoundUtil.MSG_INTERVAL_MS, frameNr))
-                    .reduce(SoundUtil::sumArray)
-                    .orElseGet(() -> SoundUtil.silent(SoundUtil.MSG_INTERVAL_MS));
-            var release = SoundUtil.multArray(SoundUtil.linearDown(SoundUtil.MSG_INTERVAL_MS), releaseBuff);
-
-            var sounds = Stream.of(soundBuff, attack, release)
-                    .reduce(SoundUtil::sumArray).orElseThrow();
-
-            var noteCount = activeNotes.size() + attackNotes.size() + releaseNotes.size();
-            var sinVolume = SoundUtil.multArray(1.0 / noteCount, sounds);
-            send(new SoundBuffer(frameNr, sinVolume));
-
-            activeNotes.addAll(attackNotes);
-            attackNotes.clear();
-            releaseNotes.clear();
-            frameNr++;
-        });
     }
 
     @Override
     public void receive(JsonNode message) {
-        var noteAction = convert(message, NoteAction.class);
-        if (noteAction.action.equals("play")) {
-            attackNotes.add(noteAction.midiNumber);
-        } else { // stop
-            attackNotes.remove(noteAction.midiNumber);
-            activeNotes.remove(noteAction.midiNumber);
-            releaseNotes.add(noteAction.midiNumber);
+        var noteInstructions = convert(message, NoteReceiver.NoteInstructions.class);
+
+        var result = new ArrayList<double[]>();
+        for (NoteReceiver.Instruction instruction : noteInstructions.instructions()) {
+            var frequency = SoundUtil.calculateFrequency(instruction.midiNumber());
+            var sinWave = createSinWaveBuffer(frequency, MSG_INTERVAL_MS, noteInstructions.frameNr());
+            var volume = SoundUtil.linear(MSG_INTERVAL_MS, instruction.startVolume(), instruction.endVolume());
+            var volumeArray = SoundUtil.multArray(sinWave, volume);
+            result.add(volumeArray);
         }
+        var wave = result.stream().reduce(SoundUtil::sumArray).orElse(SoundUtil.silent(MSG_INTERVAL_MS));
+        var waveNorm = SoundUtil.multArray(1.0 / noteInstructions.instructions().size(), wave);
+        send(new SoundBuffer(noteInstructions.frameNr(), waveNorm));
     }
 
-    double[] createSinWaveBuffer(double freq, int ms, int frameNr) {
+    double[] createSinWaveBuffer(double freq, int ms, long frameNr) {
         int samples = (ms * SAMPLE_RATE) / 1000;
         double[] output = new double[samples];
         var period = SAMPLE_RATE / freq;

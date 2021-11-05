@@ -1,10 +1,14 @@
 package com.mvanniekerk.akka.compute.compute.synth;
 
-import static com.mvanniekerk.akka.compute.compute.synth.SoundSink.SAMPLE_RATE;
+import java.util.Arrays;
 
 public class SoundUtil {
 
-    public static final int MSG_INTERVAL_MS = 50;
+    public static final int MSG_INTERVAL_MS = 20;
+    static final int SAMPLE_RATE = 44100;
+
+    private SoundUtil() {
+    }
 
     static double calculateFrequency(int noteValue) {
         final var a = Math.pow(2, 1. / 12);
@@ -35,26 +39,19 @@ public class SoundUtil {
         return output;
     }
 
-    static double[] linearUp(int ms) {
+    static double[] linear(int ms, double start, double end) {
         int samples = (ms * SAMPLE_RATE) / 1000;
         var output = new double[samples];
         for (int i = 0; i < output.length; i++) {
-            output[i] = 1.0 * i / samples;
-        }
-        return output;
-    }
-
-    static double[] linearDown(int ms) {
-        int samples = (ms * SAMPLE_RATE) / 1000;
-        var output = new double[samples];
-        for (int i = 0; i < output.length; i++) {
-            output[i] = 1 - 1.0 * i / samples;
+            output[i] = start + (end - start) * i / samples;
         }
         return output;
     }
 
     static double[] silent(int ms) {
         int samples = (ms * SAMPLE_RATE) / 1000;
-        return new double[samples];
+        var doubles = new double[samples];
+        Arrays.fill(doubles, 0);
+        return doubles;
     }
 }
