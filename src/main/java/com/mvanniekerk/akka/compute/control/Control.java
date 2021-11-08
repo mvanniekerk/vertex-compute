@@ -61,7 +61,7 @@ public class Control extends AbstractBehavior<Control.Message> {
     private Control(ActorContext<Message> context, TimerScheduler<Message> scheduler) {
         super(context);
         logMessageAdapter = getContext().messageAdapter(CoreLog.LogMessage.class, WrappedLog::new);
-        scheduler.startTimerAtFixedRate(new RequestMetrics(), Duration.ofSeconds(1));
+        scheduler.startTimerAtFixedRate(new RequestMetrics(), Duration.ofSeconds(10));
     }
 
     @Override
