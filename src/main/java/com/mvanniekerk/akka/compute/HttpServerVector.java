@@ -71,6 +71,7 @@ public class HttpServerVector extends AllDirectives {
     }
 
     private record CreateVertex(String name, String code) {}
+    private record DeleteVertex(String id, String name) {}
     private record LoadCode(String code) {}
     private record LoadName(String name) {}
     private record Link(String source, String target) {}
@@ -80,6 +81,7 @@ public class HttpServerVector extends AllDirectives {
                 path("state", this::getStateRoute),
                 path("load", this::loadStateRoute),
                 path("createvertex", this::createVertexRoute),
+                path("stopvertex", this::stopVertexRoute),
                 pathPrefix("send", this::sendRoute),
                 path("sendws", this::sendWsRoute),
                 pathPrefix("code", this::loadCodeRoute),
@@ -212,6 +214,13 @@ public class HttpServerVector extends AllDirectives {
                     TIMEOUT,
                     system.scheduler());
             return onSuccess(reply, id -> complete(StatusCodes.OK, id, Jackson.marshaller()));
+        }));
+    }
+
+    private Route stopVertexRoute() {
+        return post(() -> entity(Jackson.unmarshaller(DeleteVertex.class), body -> {
+            control.tell(new Control.DeleteVertex(body.id, body.name));
+            return complete(StatusCodes.OK, "vertex deleted", Jackson.marshaller());
         }));
     }
 

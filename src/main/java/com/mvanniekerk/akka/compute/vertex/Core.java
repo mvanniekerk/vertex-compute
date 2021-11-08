@@ -7,12 +7,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.mvanniekerk.akka.compute.compute.Compiler;
 import com.mvanniekerk.akka.compute.compute.ComputeCore;
 import com.mvanniekerk.akka.compute.compute.StaticClassNameCompiler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.*;
 
 public class Core extends AbstractBehavior<VertexMessage> {
+    private static final Logger LOGGER = LoggerFactory.getLogger(Core.class);
     private static final int MAX_LOG_MESSAGES = 100;
     private static final int ROLLING_AVERAGE_DURATION_SECONDS = 10;
 
@@ -159,6 +162,14 @@ public class Core extends AbstractBehavior<VertexMessage> {
                 .onMessage(CoreControl.Connect.class, msg -> {
                     targetsById.put(msg.id(), msg.target());
                     return this;
+                })
+                .onMessage(CoreControl.Disconnect.class, msg -> {
+                    targetsById.remove(msg.id());
+                    return this;
+                })
+                .onMessage(CoreControl.Stop.class, msg -> {
+                    process.onStop();
+                    return Behaviors.stopped();
                 })
                 .build();
     }

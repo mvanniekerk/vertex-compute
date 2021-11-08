@@ -34,6 +34,11 @@ public class SoundSink extends ComputeCore {
         player.writeToBuffer(asBytes(soundBuffer.buffer()));
     }
 
+    @Override
+    public void onStop() {
+        player.stop();
+    }
+
     private static byte[] asBytes(double[] in) {
         var output = new byte[in.length];
         for (int i = 0; i < in.length; i++) {
@@ -44,10 +49,13 @@ public class SoundSink extends ComputeCore {
 
     private static class Player implements Runnable {
         private final int bufferSize;
-        private boolean isRunning = true;
+        private volatile boolean isRunning = true;
         private final SourceDataLine line;
 
         public void writeToBuffer(byte[] soundBuffer) {
+            if (!isRunning) {
+                return;
+            }
             int left = bufferSize - line.available();
             if (left == 0) {
                 System.out.println("Warning!! No samples left...");

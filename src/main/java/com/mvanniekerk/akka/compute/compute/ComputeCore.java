@@ -22,6 +22,10 @@ public abstract class ComputeCore {
         this.core = consumer;
     }
 
+    public void onStop() {
+        // No default behaviour.
+    }
+
     public final <T> T convert(JsonNode message, Class<T> type) {
         try {
             return objectMapper.treeToValue(message, type);

@@ -22,6 +22,7 @@ public class Control extends AbstractBehavior<Control.Message> {
     public record GetStateRequest(ActorRef<SystemDescription> replyTo) implements Message {}
     public record LoadStateRequest(SystemDescription system) implements Message {}
     public record CreateVertex(ActorRef<VertexReply> replyTo, String name, String code) implements Message {}
+    public record DeleteVertex(String id, String name) implements Message {}
     public record VertexReply(String status, VertexDescription description) {}
     public record LoadCode(ActorRef<VertexDescription> replyTo, String id, String code) implements Message {}
     public record LoadName(ActorRef<VertexDescription> replyTo, String id, String name) implements Message {}
@@ -97,6 +98,15 @@ public class Control extends AbstractBehavior<Control.Message> {
                     String id = UUID.randomUUID().toString();
                     var description = createVertex(id, msg.name, msg.code);
                     msg.replyTo.tell(new VertexReply("Success", description));
+                    return this;
+                })
+                .onMessage(DeleteVertex.class, msg -> {
+                    verticesByName.remove(msg.name);
+                    verticesById.values().forEach(vertex -> vertex.tell(new CoreControl.Disconnect(msg.id)));
+                    subscriptionsBySessionId.values().removeIf(id -> id.equals(msg.id));
+                    edgesById.values().removeIf(edge -> edge.from().equals(msg.id) || edge.to().equals(msg.id));
+                    var vertex = verticesById.remove(msg.id);
+                    vertex.tell(new CoreControl.Stop());
                     return this;
                 })
                 .onMessage(ReceiveMsg.class, msg -> {
@@ -189,7 +199,7 @@ public class Control extends AbstractBehavior<Control.Message> {
     private void linkVertices(String id, String from, String to) {
         ActorRef<VertexMessage> source = verticesById.get(from);
         ActorRef<VertexMessage> target = verticesById.get(to);
-        source.tell(new CoreControl.Connect(id, target));
+        source.tell(new CoreControl.Connect(to, target));
         edgesById.put(id, new SystemDescription.Edge(id, from, to));
     }
 
