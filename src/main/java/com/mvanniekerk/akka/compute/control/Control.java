@@ -22,7 +22,7 @@ public class Control extends AbstractBehavior<Control.Message> {
     public record GetStateRequest(ActorRef<SystemDescription> replyTo) implements Message {}
     public record LoadStateRequest(SystemDescription system) implements Message {}
     public record CreateVertex(ActorRef<VertexReply> replyTo, String name, String code) implements Message {}
-    public record DeleteVertex(String id, String name) implements Message {}
+    public record DeleteVertex(String id) implements Message {}
     public record VertexReply(String status, VertexDescription description) {}
     public record LoadCode(ActorRef<VertexDescription> replyTo, String id, String code) implements Message {}
     public record LoadName(ActorRef<VertexDescription> replyTo, String id, String name) implements Message {}
@@ -101,7 +101,7 @@ public class Control extends AbstractBehavior<Control.Message> {
                     return this;
                 })
                 .onMessage(DeleteVertex.class, msg -> {
-                    verticesByName.remove(msg.name);
+                    // TODO: verticesByName.remove(msg.name);
                     verticesById.values().forEach(vertex -> vertex.tell(new CoreControl.Disconnect(msg.id)));
                     subscriptionsBySessionId.values().removeIf(id -> id.equals(msg.id));
                     edgesById.values().removeIf(edge -> edge.from().equals(msg.id) || edge.to().equals(msg.id));

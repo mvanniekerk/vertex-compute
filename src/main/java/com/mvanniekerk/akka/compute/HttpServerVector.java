@@ -18,6 +18,7 @@ import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import akka.stream.typed.javadsl.ActorSink;
 import akka.stream.typed.javadsl.ActorSource;
+import ch.megard.akka.http.cors.javadsl.settings.CorsSettings;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.mvanniekerk.akka.compute.control.Control;
@@ -36,6 +37,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static akka.http.javadsl.server.PathMatchers.separateOnSlashes;
 import static ch.megard.akka.http.cors.javadsl.CorsDirectives.cors;
 import static ch.megard.akka.http.cors.javadsl.CorsDirectives.corsRejectionHandler;
 import static com.mvanniekerk.akka.compute.util.HttpObjectMapper.genericJsonUnmarshaller;
@@ -76,17 +78,35 @@ public class HttpServerVector extends AllDirectives {
     private record LoadName(String name) {}
     private record Link(String source, String target) {}
 
+    /*
+    /graph - GET the graph
+    /graph - POST load a graph
+
+    /graph/vertex - POST create a vertex (returns ID)
+    /graph/vertex/{id} - DELETE a vertex
+    /graph/vertex/{id}/code - POST update the source code
+    /graph/vertex/{id}/name - POST update the name
+    /graph/edge - POST create an edge
+
+    /send/{name} - POST a message to a vertex
+    /sendws - open a WS connection for sending messages directly to vertices
+    /ws - open a WS connection for subscribing to log messages and metrics
+     */
+
     private Route createRoute() {
         Route route = concat(
-                path("state", this::getStateRoute),
-                path("load", this::loadStateRoute),
-                path("createvertex", this::createVertexRoute),
-                path("stopvertex", this::stopVertexRoute),
+                path(separateOnSlashes("graph/vertex"), () -> post(this::createVertexRoute)),
+                path("graph", () -> concat(get(this::getGraphRoute), post(this::postGraphRoute))),
+                pathPrefix(separateOnSlashes("graph/vertex"), () -> concat(
+                        delete(this::deleteVertexRoute),
+                        pathPrefix(id -> concat(
+                                path("code", () -> post(() -> loadCodeRoute(id))),
+                                path("name", () -> post(() -> loadNameRoute(id)))
+                        ))
+                )),
+                path(separateOnSlashes("graph/edge"), () -> put(this::linkRoute)),
                 pathPrefix("send", this::sendRoute),
                 path("sendws", this::sendWsRoute),
-                pathPrefix("code", this::loadCodeRoute),
-                pathPrefix("name", this::loadNameRoute),
-                path("link", this::linkRoute),
                 path("ws", this::wsRoute)
         );
 
@@ -177,54 +197,54 @@ public class HttpServerVector extends AllDirectives {
         }));
     }
 
-    private Route loadCodeRoute() {
-        return post(() -> path(id -> entity(Jackson.unmarshaller(LoadCode.class), code -> {
+    private Route loadCodeRoute(String id) {
+        return entity(Jackson.unmarshaller(LoadCode.class), code -> {
             CompletionStage<VertexDescription> reply = AskPattern.ask(
                     control,
                     replyTo -> new Control.LoadCode(replyTo, id, code.code),
                     TIMEOUT,
                     system.scheduler());
             return onSuccess(reply, content -> complete(StatusCodes.OK, content, Jackson.marshaller()));
-        })));
+        });
     }
 
-    private Route loadNameRoute() {
-        return post(() -> path(id -> entity(Jackson.unmarshaller(LoadName.class), code -> {
+    private Route loadNameRoute(String id) {
+        return entity(Jackson.unmarshaller(LoadName.class), code -> {
             CompletionStage<VertexDescription> reply = AskPattern.ask(
                     control,
                     replyTo -> new Control.LoadName(replyTo, id, code.name),
                     TIMEOUT,
                     system.scheduler());
             return onSuccess(reply, content -> complete(StatusCodes.OK, content, Jackson.marshaller()));
-        })));
+        });
     }
 
     private Route sendRoute() {
-        return post(() -> path(id -> entity(genericJsonUnmarshaller(), body -> {
-            control.tell(new Control.ReceiveMsg(id, body));
+        return post(() -> path(name -> entity(genericJsonUnmarshaller(), body -> {
+            control.tell(new Control.ReceiveMsg(name, body));
             return complete(StatusCodes.OK, "message sent", Jackson.marshaller());
         })));
     }
 
     private Route createVertexRoute() {
-        return post(() -> entity(Jackson.unmarshaller(CreateVertex.class), body -> {
+        return entity(Jackson.unmarshaller(CreateVertex.class), body -> {
             CompletionStage<Control.VertexReply> reply = AskPattern.ask(
                     control,
                     replyTo -> new Control.CreateVertex(replyTo, body.name, body.code),
                     TIMEOUT,
                     system.scheduler());
             return onSuccess(reply, id -> complete(StatusCodes.OK, id, Jackson.marshaller()));
-        }));
+        });
     }
 
-    private Route stopVertexRoute() {
-        return post(() -> entity(Jackson.unmarshaller(DeleteVertex.class), body -> {
-            control.tell(new Control.DeleteVertex(body.id, body.name));
+    private Route deleteVertexRoute() {
+        return path(id -> {
+            control.tell(new Control.DeleteVertex(id));
             return complete(StatusCodes.OK, "vertex deleted", Jackson.marshaller());
-        }));
+        });
     }
 
-    private Route loadStateRoute() {
+    private Route postGraphRoute() {
         return post(() -> entity(Jackson.unmarshaller(SystemDescription.class), body -> {
             control.tell(new Control.LoadStateRequest(body));
             CompletionStage<SystemDescription> reply = AskPattern.ask(
@@ -236,14 +256,12 @@ public class HttpServerVector extends AllDirectives {
         }));
     }
 
-    private Route getStateRoute() {
-        return get(() -> {
-            CompletionStage<SystemDescription> reply = AskPattern.ask(
-                    control,
-                    Control.GetStateRequest::new,
-                    TIMEOUT,
-                    system.scheduler());
-            return onSuccess(reply, description -> complete(StatusCodes.OK, description, Jackson.marshaller()));
-        });
+    private Route getGraphRoute() {
+        CompletionStage<SystemDescription> reply = AskPattern.ask(
+                control,
+                Control.GetStateRequest::new,
+                TIMEOUT,
+                system.scheduler());
+        return onSuccess(reply, description -> complete(StatusCodes.OK, description, Jackson.marshaller()));
     }
 }
