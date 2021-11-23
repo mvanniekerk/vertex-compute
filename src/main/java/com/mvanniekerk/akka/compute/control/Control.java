@@ -4,6 +4,7 @@ import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.javadsl.*;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.mvanniekerk.akka.compute.control.graph.Edge;
 import com.mvanniekerk.akka.compute.control.graph.Vertex;
 import com.mvanniekerk.akka.compute.control.graph.Vertices;
 import com.mvanniekerk.akka.compute.util.Aggregator;
@@ -50,7 +51,7 @@ public class Control extends AbstractBehavior<Control.Message> {
     }
 
     private final Vertices vertices = new Vertices();
-    private final Map<String, SystemDescription.Edge> edgesById = new HashMap<>();
+    private final Map<String, Edge> edgesById = new HashMap<>();
     private final ActorRef<CoreLog.LogMessage> logMessageAdapter;
 
     private final Map<String, String> subscriptionsBySessionId = new HashMap<>();
@@ -79,7 +80,7 @@ public class Control extends AbstractBehavior<Control.Message> {
                     for (VertexDescription vertex : system.vertices()) {
                         createVertex(vertex.id(), vertex.name(), vertex.code());
                     }
-                    for (SystemDescription.Edge edge : system.edges()) {
+                    for (Edge edge : system.edges()) {
                         linkVertices(edge.id(), edge.from(), edge.to());
                     }
                     return this;
@@ -120,7 +121,6 @@ public class Control extends AbstractBehavior<Control.Message> {
                 .onMessage(LinkVertices.class, msg -> {
                     String id = UUID.randomUUID().toString();
                     linkVertices(id, msg.from, msg.to);
-                    LOGGER.info("linked ");
                     msg.replyTo.tell(new LinkReply("Success", id));
                     return this;
                 })
@@ -187,7 +187,7 @@ public class Control extends AbstractBehavior<Control.Message> {
         ActorRef<VertexMessage> source = vertices.getVertexById(from);
         ActorRef<VertexMessage> target = vertices.getVertexById(to);
         source.tell(new CoreControl.Connect(to, target));
-        edgesById.put(id, new SystemDescription.Edge(id, from, to));
+        edgesById.put(id, new Edge(id, from, to));
     }
 
     private VertexDescription createVertex(String id, String name, String code) {
