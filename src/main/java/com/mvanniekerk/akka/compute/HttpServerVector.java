@@ -18,7 +18,6 @@ import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import akka.stream.typed.javadsl.ActorSink;
 import akka.stream.typed.javadsl.ActorSource;
-import ch.megard.akka.http.cors.javadsl.settings.CorsSettings;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.mvanniekerk.akka.compute.control.Control;
@@ -104,7 +103,7 @@ public class HttpServerVector extends AllDirectives {
                                 path("name", () -> post(() -> loadNameRoute(id)))
                         ))
                 )),
-                path(separateOnSlashes("graph/edge"), () -> put(this::linkRoute)),
+                path(separateOnSlashes("graph/edge"), () -> post(this::linkRoute)),
                 pathPrefix("send", this::sendRoute),
                 path("sendws", this::sendWsRoute),
                 path("ws", this::wsRoute)

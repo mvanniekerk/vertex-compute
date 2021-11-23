@@ -4,14 +4,18 @@ import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.javadsl.*;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.mvanniekerk.akka.compute.control.graph.Vertex;
+import com.mvanniekerk.akka.compute.control.graph.Vertices;
 import com.mvanniekerk.akka.compute.util.Aggregator;
 import com.mvanniekerk.akka.compute.vertex.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 public class Control extends AbstractBehavior<Control.Message> {
@@ -29,10 +33,6 @@ public class Control extends AbstractBehavior<Control.Message> {
     public record LinkVertices(ActorRef<LinkReply> replyTo, String from, String to) implements Message {}
     public record LinkReply(String status, String id) {}
 
-    // Vertex responses
-    private record VertexDescribeAggregator(ActorRef<SystemDescription> replyTo,
-                                            List<VertexDescription> vertices) implements Message {}
-
     // WS push messages
     public record RegisterControlWebSocket(String sessionId, ActorRef<WebSocketMessage> socket) implements Message {}
     public record WrappedLog(CoreLog.LogMessage message) implements Message {}
@@ -49,8 +49,7 @@ public class Control extends AbstractBehavior<Control.Message> {
                 Behaviors.withTimers(scheduler -> new Control(context, scheduler)));
     }
 
-    private final Map<String, ActorRef<VertexMessage>> verticesByName = new HashMap<>();
-    private final Map<String, ActorRef<VertexMessage>> verticesById = new HashMap<>();
+    private final Vertices vertices = new Vertices();
     private final Map<String, SystemDescription.Edge> edgesById = new HashMap<>();
     private final ActorRef<CoreLog.LogMessage> logMessageAdapter;
 
@@ -68,22 +67,13 @@ public class Control extends AbstractBehavior<Control.Message> {
     public Receive<Message> createReceive() {
         return newReceiveBuilder()
                 .onMessage(GetStateRequest.class, msg -> {
-                    ArrayList<ActorRef<VertexMessage>> vertices = new ArrayList<>(verticesById.values());
-                    getContext().spawnAnonymous(Aggregator.create(
-                            VertexDescription.class,
-                            replyTo -> vertices.forEach(vertex -> vertex.tell(new CoreControl.Describe(replyTo))),
-                            vertices.size(),
-                            getContext().getSelf(),
-                            replies -> new VertexDescribeAggregator(msg.replyTo(), replies),
-                            Duration.of(5, ChronoUnit.SECONDS)));
+                    var vertexDescriptions = vertices.getAll().stream()
+                            .map(Vertex::describe)
+                            .collect(Collectors.toList());
+                    var description = new SystemDescription(vertexDescriptions, new ArrayList<>(edgesById.values()));
+                    msg.replyTo.tell(description);
                     return this;
                 })
-                .onMessage(VertexDescribeAggregator.class, msg -> {
-                    SystemDescription description = new SystemDescription(msg.vertices(), new ArrayList<>(edgesById.values()));
-                    msg.replyTo().tell(description);
-                    return this;
-                })
-
                 .onMessage(LoadStateRequest.class, msg -> {
                     var system = msg.system;
                     for (VertexDescription vertex : system.vertices()) {
@@ -101,48 +91,45 @@ public class Control extends AbstractBehavior<Control.Message> {
                     return this;
                 })
                 .onMessage(DeleteVertex.class, msg -> {
-                    // TODO: verticesByName.remove(msg.name);
-                    verticesById.values().forEach(vertex -> vertex.tell(new CoreControl.Disconnect(msg.id)));
+                    vertices.getAll().forEach(vertex -> vertex.getActor().tell(new CoreControl.Disconnect(msg.id)));
+                    var removed = vertices.removeVertex(msg.id);
+                    removed.getActor().tell(new CoreControl.Stop());
                     subscriptionsBySessionId.values().removeIf(id -> id.equals(msg.id));
                     edgesById.values().removeIf(edge -> edge.from().equals(msg.id) || edge.to().equals(msg.id));
-                    var vertex = verticesById.remove(msg.id);
-                    vertex.tell(new CoreControl.Stop());
                     return this;
                 })
                 .onMessage(ReceiveMsg.class, msg -> {
                     if (msg.name == null || msg.body == null) {
                         return this;
                     }
-                    ActorRef<VertexMessage> vertActor = verticesByName.get(msg.name);
-                    if (vertActor != null) {
-                        vertActor.tell(new CoreConsumer.Message(msg.body));
-                    }
+                    vertices.getVerticesByName(msg.name)
+                            .forEach(vertex -> vertex.getActor().tell(new CoreConsumer.Message(msg.body)));
                     return this;
                 })
                 .onMessage(LoadCode.class, msg -> {
-                    ActorRef<VertexMessage> vertActor = verticesById.get(msg.id);
-                    vertActor.tell(new CoreControl.LoadCode(msg.replyTo, msg.code));
+                    var vertex = vertices.getVertexDescriptionById(msg.id);
+                    vertex.setCode(msg.code);
+                    vertex.getActor().tell(new CoreControl.LoadCode(msg.replyTo, msg.code));
                     return this;
                 })
                 .onMessage(LoadName.class, msg -> {
-                    var vertex = verticesById.get(msg.id);
-                    verticesByName.remove(msg.name);
-                    verticesByName.put(msg.name, vertex);
-                    vertex.tell(new CoreControl.LoadName(msg.replyTo, msg.name));
+                    var vertex = vertices.changeVertexName(msg.id, msg.name);
+                    vertex.getActor().tell(new CoreControl.LoadName(msg.replyTo, msg.name));
                     return this;
                 })
                 .onMessage(LinkVertices.class, msg -> {
                     String id = UUID.randomUUID().toString();
                     linkVertices(id, msg.from, msg.to);
+                    LOGGER.info("linked ");
                     msg.replyTo.tell(new LinkReply("Success", id));
                     return this;
                 })
                 .onMessage(RequestMetrics.class, msg -> {
-                    var vertices = new ArrayList<>(verticesById.values());
+                    var vertActors = vertices.getAll();
                     getContext().spawnAnonymous(Aggregator.create(
                             CoreMetrics.MetricsWithId.class,
-                            replyTo -> vertices.forEach(vertex -> vertex.tell(new CoreMetrics.GetMetrics(replyTo))),
-                            vertices.size(),
+                            replyTo -> vertActors.forEach(vertex -> vertex.getActor().tell(new CoreMetrics.GetMetrics(replyTo))),
+                            vertActors.size(),
                             getContext().getSelf(),
                             replies -> {
                                 var metrics = replies.stream()
@@ -164,12 +151,12 @@ public class Control extends AbstractBehavior<Control.Message> {
                     var subscription = subscriptionsBySessionId.get(msg.sessionId);
                     if (subscription != null) {
                         // close previous subscription, if it exists.
-                        var oldVertex = verticesById.get(subscription);
+                        var oldVertex = vertices.getVertexById(subscription);
                         oldVertex.tell(new CoreLog.UnsubscribeLog());
                     }
                     if (msg.id != null) {
                         subscriptionsBySessionId.put(msg.sessionId, msg.id);
-                        ActorRef<VertexMessage> newVertex = verticesById.get(msg.id);
+                        ActorRef<VertexMessage> newVertex = vertices.getVertexById(msg.id);
                         newVertex.tell(new CoreLog.SubscribeLog(logMessageAdapter));
                     } else {
                         // socket closed, clean up session
@@ -197,8 +184,8 @@ public class Control extends AbstractBehavior<Control.Message> {
     }
 
     private void linkVertices(String id, String from, String to) {
-        ActorRef<VertexMessage> source = verticesById.get(from);
-        ActorRef<VertexMessage> target = verticesById.get(to);
+        ActorRef<VertexMessage> source = vertices.getVertexById(from);
+        ActorRef<VertexMessage> target = vertices.getVertexById(to);
         source.tell(new CoreControl.Connect(to, target));
         edgesById.put(id, new SystemDescription.Edge(id, from, to));
     }
@@ -211,8 +198,7 @@ public class Control extends AbstractBehavior<Control.Message> {
             vertName = name;
         }
         ActorRef<VertexMessage> vert = getContext().spawn(Core.create(id, vertName, code), id);
-        verticesById.put(id, vert);
-        verticesByName.put(vertName, vert);
+        vertices.addVertex(new Vertex(vert, id, name, code));
         return new VertexDescription(id, vertName, code);
     }
 }

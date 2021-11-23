@@ -133,11 +133,6 @@ public class Core extends AbstractBehavior<VertexMessage> {
                     msg.replyTo().tell(new CoreMetrics.MetricsWithId(id, metrics));
                     return this;
                 })
-
-                .onMessage(CoreControl.Describe.class, msg -> {
-                    msg.replyTo().tell(describe());
-                    return this;
-                })
                 .onMessage(CoreControl.ShowCode.class, msg -> {
                     msg.replyTo().tell(code);
                     return this;
