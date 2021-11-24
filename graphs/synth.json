@@ -1,0 +1,126 @@
+{
+  "edges": [
+    {
+      "from": "2618f5cb-bc90-47c9-95ce-c1cbe2d8e96a",
+      "id": "b01ebb3f-cfc9-4ff4-bc50-4852534cffb4",
+      "to": "1555149f-a8d3-42f6-acae-265366abe6a6"
+    },
+    {
+      "from": "199d4b7a-df78-49ea-83dd-40d0da389f80",
+      "id": "ee57d956-bbb1-485a-a3e5-acaf86656543",
+      "to": "1e41cdd2-12be-4a7f-8504-76a2a8c9e3ea"
+    },
+    {
+      "from": "199d4b7a-df78-49ea-83dd-40d0da389f80",
+      "id": "a2a31b4b-7e95-41d9-9c45-a45eaff968b1",
+      "to": "f318bf73-77bd-43e6-888d-904dbd186867"
+    },
+    {
+      "from": "5cf26679-820b-4dba-a307-2f0dd17099c0",
+      "id": "f06b4631-bbc9-4d8c-8464-b1b54be4112a",
+      "to": "1555149f-a8d3-42f6-acae-265366abe6a6"
+    },
+    {
+      "from": "199d4b7a-df78-49ea-83dd-40d0da389f80",
+      "id": "4d360721-c887-44d4-8299-76a7765c3b69",
+      "to": "1a796494-2e9f-4cc9-9a83-40738b5d04a7"
+    },
+    {
+      "from": "d062bc26-4481-4638-b739-d780d408c50a",
+      "id": "cbbd646b-47ad-4cbd-a021-844606317878",
+      "to": "1555149f-a8d3-42f6-acae-265366abe6a6"
+    },
+    {
+      "from": "d8272757-cbaa-4019-b557-7e95bb53d20a",
+      "id": "42620d3b-925e-454a-9a01-f6e8e761cb61",
+      "to": "2618f5cb-bc90-47c9-95ce-c1cbe2d8e96a"
+    },
+    {
+      "from": "f318bf73-77bd-43e6-888d-904dbd186867",
+      "id": "17211150-ac1e-4e3b-b7f7-054f55406d20",
+      "to": "d062bc26-4481-4638-b739-d780d408c50a"
+    },
+    {
+      "from": "1555149f-a8d3-42f6-acae-265366abe6a6",
+      "id": "1886a98b-e9e7-4253-a0fe-46ab02994bc8",
+      "to": "38aeb650-6e92-48e7-9e74-a1198216ba49"
+    },
+    {
+      "from": "199d4b7a-df78-49ea-83dd-40d0da389f80",
+      "id": "03987f40-813c-4ef8-9302-da5984932119",
+      "to": "d8272757-cbaa-4019-b557-7e95bb53d20a"
+    },
+    {
+      "from": "1a796494-2e9f-4cc9-9a83-40738b5d04a7",
+      "id": "ae1f89f2-c781-4471-85a3-c8ee0a2b5c95",
+      "to": "b58b727b-e0cf-4a76-b460-d9c8c2bc060d"
+    },
+    {
+      "from": "b58b727b-e0cf-4a76-b460-d9c8c2bc060d",
+      "id": "81df3f6e-3708-4f29-8c38-f9a9332f2c34",
+      "to": "1555149f-a8d3-42f6-acae-265366abe6a6"
+    },
+    {
+      "from": "1e41cdd2-12be-4a7f-8504-76a2a8c9e3ea",
+      "id": "6a680d3e-d580-4114-a207-cd2a2fc4af22",
+      "to": "5cf26679-820b-4dba-a307-2f0dd17099c0"
+    }
+  ],
+  "vertices": [
+    {
+      "code": "NoteSynthesizer 2",
+      "id": "f318bf73-77bd-43e6-888d-904dbd186867",
+      "name": "synth 2"
+    },
+    {
+      "code": "NoteSynthesizer 1",
+      "id": "1a796494-2e9f-4cc9-9a83-40738b5d04a7",
+      "name": "synth 1"
+    },
+    {
+      "code": "SoundVolume 0.5",
+      "id": "d062bc26-4481-4638-b739-d780d408c50a",
+      "name": "volume 2"
+    },
+    {
+      "code": "NoteSynthesizer 4",
+      "id": "d8272757-cbaa-4019-b557-7e95bb53d20a",
+      "name": "synth 4"
+    },
+    {
+      "code": "NoteEqAggregator",
+      "id": "1555149f-a8d3-42f6-acae-265366abe6a6",
+      "name": "aggregator"
+    },
+    {
+      "code": "SoundVolume",
+      "id": "b58b727b-e0cf-4a76-b460-d9c8c2bc060d",
+      "name": "volume 1"
+    },
+    {
+      "code": "NoteReceiver",
+      "id": "199d4b7a-df78-49ea-83dd-40d0da389f80",
+      "name": "logger"
+    },
+    {
+      "code": "NoteSynthesizer 3",
+      "id": "1e41cdd2-12be-4a7f-8504-76a2a8c9e3ea",
+      "name": "synth 3"
+    },
+    {
+      "code": "SoundVolume 0.5",
+      "id": "5cf26679-820b-4dba-a307-2f0dd17099c0",
+      "name": "volume 3"
+    },
+    {
+      "code": "SoundVolume 0.2",
+      "id": "2618f5cb-bc90-47c9-95ce-c1cbe2d8e96a",
+      "name": "volume 4"
+    },
+    {
+      "code": "SoundSink",
+      "id": "38aeb650-6e92-48e7-9e74-a1198216ba49",
+      "name": "Sound"
+    }
+  ]
+}

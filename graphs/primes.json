@@ -1,0 +1,46 @@
+{
+  "edges": [
+    {
+      "from": "78a4ba1e-f80b-44c6-9ec0-d624314359cc",
+      "id": "fc93a9c1-236b-4443-9c0c-b5ac1133b216",
+      "to": "90e62d48-fcae-4cfa-811f-b4d31148046d"
+    },
+    {
+      "from": "6909acac-452f-4875-a8eb-ab29fd49ad63",
+      "id": "436baa17-9510-4135-91c2-65f62c0e9491",
+      "to": "90e62d48-fcae-4cfa-811f-b4d31148046d"
+    },
+    {
+      "from": "6909acac-452f-4875-a8eb-ab29fd49ad63",
+      "id": "96178241-28d7-4dce-a5d4-2546b3beecb1",
+      "to": "f6f28d1f-2acb-43e2-8e3b-48452f493845"
+    },
+    {
+      "from": "78a4ba1e-f80b-44c6-9ec0-d624314359cc",
+      "id": "79bfbf25-ae1f-473f-a166-2d9192ee14a3",
+      "to": "6909acac-452f-4875-a8eb-ab29fd49ad63"
+    }
+  ],
+  "vertices": [
+    {
+      "code": "Logger",
+      "id": "f6f28d1f-2acb-43e2-8e3b-48452f493845",
+      "name": "Primes"
+    },
+    {
+      "code": "Logger",
+      "id": "90e62d48-fcae-4cfa-811f-b4d31148046d",
+      "name": "Sink"
+    },
+    {
+      "code": "PrimeClassifier",
+      "id": "6909acac-452f-4875-a8eb-ab29fd49ad63",
+      "name": "Sieve"
+    },
+    {
+      "code": "NumberSource 0.1",
+      "id": "78a4ba1e-f80b-44c6-9ec0-d624314359cc",
+      "name": "Numbers"
+    }
+  ]
+}
