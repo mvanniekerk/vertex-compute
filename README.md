@@ -7,7 +7,7 @@ The problem with these kinds of architectures is that they have many moving part
 Vertex Compute aims to simplify this process by presenting a framework in which to build these systems quickly and reliably.
 
 ## An example system
-![](images/example-system.png)
+![](images/climate-system.png)
 The architecture described in the previous paragraph may sound a bit abstract.
 This image shows a simple system of different components communicating with each other. 
 The goal of this system is to measure temperature and adjust a thermostat. 
@@ -37,7 +37,7 @@ The example gives an idea of the characteristics of this kind of system. It has
 3. The complete system forms a Directed Acyclic Graph (DAG).
 
 One way to build systems like this is to deploy each component as a separate service in kubernetes, and communicate through kafka.
-This is a fine system, but it is complex enough that this is only feasible for larger organizations.
+This is a fine implementation, but it is complex enough that this is only feasible for larger organizations.
 The goal of Vertex Compute is to make these kinds of systems as easy to build as a traditional monolith.
 
 ## Vertex Compute goals and characteristics
